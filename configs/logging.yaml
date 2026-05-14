@@ -1,0 +1,18 @@
+# Weights & Biases logging configuration.
+# Consumed by src/train.py to call wandb.init(...) before Ultralytics training starts.
+
+wandb:
+  enabled: true             # TODO: gate logging on/off without removing the block
+  project: ""               # TODO: W&B project name
+  entity: ""                # TODO: W&B entity (team/user)
+  group: null               # TODO: group runs (e.g. by experiment id)
+  job_type: "train"         # TODO: "train" | "eval" | "sweep"
+  tags: ${tags}             # inherits the top-level tags list
+  name: null                # TODO: optional explicit run name; null = autogen
+  notes: ""                 # TODO: free-form notes
+  mode: "online"            # TODO: "online" | "offline" | "disabled"
+
+# Hooks Ultralytics will call: it has a built-in W&B integration via the
+# `wandb` callback in ultralytics.utils.callbacks. We rely on that — this block
+# just configures the wandb.init() call we make before YOLO.train().
+log_artifacts: false        # TODO: whether to upload best.pt / last.pt as artifacts

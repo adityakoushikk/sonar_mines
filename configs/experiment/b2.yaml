@@ -1,0 +1,8 @@
+# @package _global_
+# B2: ImageNet-backbone init.
+
+defaults:
+  - override /init: imagenet
+  - override /augmentation: none   # TODO: confirm aug setting for init-ablation suite
+
+tags: ["sonar", "yolov8", "exp:b2", "init:imagenet"]

@@ -1,0 +1,7 @@
+# B2: ImageNet-pretrained backbone only; YOLO neck/head trained from scratch.
+
+name: "imagenet"
+loader: "load_imagenet_backbone"
+model_variant: "yolov8n"     # TODO
+weights_path: null           # backbone weights pulled from torchvision; TODO if local
+num_classes: 2

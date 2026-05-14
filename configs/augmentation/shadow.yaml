@@ -1,0 +1,11 @@
+# A4: acoustic-shadow augmentation. Objects on the seafloor cast shadows
+# opposite the sensor; synthesizing/strengthening shadows is a strong sonar prior.
+# Implemented as a DualTransform since shadow geometry can affect bounding boxes.
+
+name: "shadow"
+pipeline:
+  - _target_: src.augmentations.shadow.AcousticShadow
+    p: 0.0                  # TODO
+    shadow_length_range: [0.0, 0.0]   # TODO: shadow length as fraction of image
+    shadow_intensity: 0.0   # TODO: intensity attenuation inside shadow region (0..1)
+    nadir_axis: "y"         # TODO: axis along which shadows are cast

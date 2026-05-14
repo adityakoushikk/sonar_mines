@@ -1,0 +1,7 @@
+# B3: full YOLOv8 checkpoint pretrained on COCO (backbone + neck + head).
+
+name: "coco"
+loader: "load_coco_full"
+model_variant: "yolov8n"     # TODO: pick the size
+weights_path: "yolov8n.pt"   # TODO: filename Ultralytics will download or local path
+num_classes: 2

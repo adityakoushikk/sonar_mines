@@ -1,0 +1,30 @@
+# Ultralytics training hyperparameters.
+# Most of these map 1:1 onto ultralytics.YOLO.train() kwargs.
+
+epochs: 0                # TODO: number of training epochs
+batch_size: 0            # TODO: per-device batch size
+imgsz: 0                 # TODO: input image size (e.g. 640)
+device: null             # TODO: "cuda", "cpu", or specific GPU index/list
+workers: 0               # TODO: dataloader workers
+
+# Optimization
+optimizer: null          # TODO: "SGD" | "Adam" | "AdamW" | "auto"
+lr0: 0.0                 # TODO: initial learning rate
+lrf: 0.0                 # TODO: final LR fraction (lr0 * lrf)
+momentum: 0.0            # TODO: SGD momentum / Adam beta1
+weight_decay: 0.0        # TODO: optimizer weight decay
+warmup_epochs: 0.0       # TODO: warmup epochs
+warmup_momentum: 0.0     # TODO: warmup initial momentum
+
+# YOLO loss weights
+box: 0.0                 # TODO: box loss gain
+cls: 0.0                 # TODO: cls loss gain
+dfl: 0.0                 # TODO: dfl loss gain
+
+# Early stopping / saving
+patience: 0              # TODO: epochs to wait for no improvement before stopping
+save_period: -1          # TODO: -1 to disable per-epoch checkpoint saving
+
+# Misc
+deterministic: true      # TODO: keep true for reproducibility
+single_cls: false        # TODO: treat all classes as one (probably false)

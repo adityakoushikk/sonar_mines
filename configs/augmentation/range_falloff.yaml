@@ -1,0 +1,10 @@
+# A3: range-dependent intensity falloff. In SSS, returns attenuate with range
+# (distance from the nadir line), producing a characteristic brightness gradient.
+
+name: "range_falloff"
+pipeline:
+  - _target_: src.augmentations.range_falloff.RangeFalloff
+    p: 0.0                # TODO
+    nadir_axis: "y"       # TODO: which image axis represents range ("x" or "y")
+    falloff_exponent: 0.0 # TODO: exponent in I(r) ~ r^-falloff_exponent
+    falloff_range: [0.0, 0.0]  # TODO: random range of exponents to sample from

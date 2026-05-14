@@ -1,0 +1,8 @@
+# B4: weights from Valdenegro-Toro's forward-look sonar (FLS) work.
+# Sonar-domain pretraining, but a different sonar modality than SSS.
+
+name: "sonar_fls"
+loader: "load_sonar_fls"
+model_variant: "yolov8n"           # TODO: confirm variant the FLS weights were trained on
+weights_path: ""                   # TODO: local path to Valdenegro-Toro checkpoint
+num_classes: 2

@@ -1,0 +1,8 @@
+# @package _global_
+# B4: Valdenegro-Toro sonar-FLS pretrained init.
+
+defaults:
+  - override /init: sonar_fls
+  - override /augmentation: none   # TODO: confirm aug setting for init-ablation suite
+
+tags: ["sonar", "yolov8", "exp:b4", "init:sonar_fls"]

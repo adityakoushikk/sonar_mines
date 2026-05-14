@@ -1,0 +1,8 @@
+# @package _global_
+# A2: COCO init + speckle-noise augmentation only.
+
+defaults:
+  - override /init: coco
+  - override /augmentation: speckle
+
+tags: ["sonar", "yolov8", "exp:a2", "init:coco", "aug:speckle"]

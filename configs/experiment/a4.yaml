@@ -1,0 +1,8 @@
+# @package _global_
+# A4: COCO init + acoustic-shadow augmentation only.
+
+defaults:
+  - override /init: coco
+  - override /augmentation: shadow
+
+tags: ["sonar", "yolov8", "exp:a4", "init:coco", "aug:shadow"]

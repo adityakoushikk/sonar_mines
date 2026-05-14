@@ -1,0 +1,19 @@
+# A5: full sonar-physics augmentation stack = speckle + range_falloff + shadow.
+# Composed pipeline; each component is also runnable in isolation.
+
+name: "physics_full"
+pipeline:
+  - _target_: src.augmentations.speckle.SpeckleNoise
+    p: 0.0
+    sigma: 0.0
+    distribution: "rayleigh"
+  - _target_: src.augmentations.range_falloff.RangeFalloff
+    p: 0.0
+    nadir_axis: "y"
+    falloff_exponent: 0.0
+    falloff_range: [0.0, 0.0]
+  - _target_: src.augmentations.shadow.AcousticShadow
+    p: 0.0
+    shadow_length_range: [0.0, 0.0]
+    shadow_intensity: 0.0
+    nadir_axis: "y"

@@ -1,0 +1,22 @@
+# Santos et al. 2024 side-scan sonar dataset.
+# 1170 SSS images total; 304 with bounding-box annotations covering 668 objects
+# in 2 classes (MILCO, NOMBO). Random split for Experiments 1, 2, 4.
+
+name: "santos"
+root: ""                        # TODO: absolute path to data/santos/ root
+images_dir: ""                  # TODO: subdir with .jpg/.png files
+labels_dir: ""                  # TODO: subdir with YOLO-format .txt files
+class_names:                    # TODO: order must match label class indices
+  - "MILCO"
+  - "NOMBO"
+
+# Random split used for the default experiments
+split:
+  kind: "random"                # one of: "random", "cross_year"
+  train_frac: 0.0               # TODO: e.g. 0.7
+  val_frac: 0.0                 # TODO: e.g. 0.15
+  test_frac: 0.0                # TODO: e.g. 0.15
+  seed: ${seed}                 # follow global seed for reproducibility
+
+# Optional: subsample to N annotated images for low-data ablations
+subsample_n: null               # TODO: int or null

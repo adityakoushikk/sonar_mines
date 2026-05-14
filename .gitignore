@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtual envs
+.venv/
+venv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Secrets
+.env
+.env.local
+
+# Logs / run outputs
+outputs/
+!outputs/.gitkeep
+wandb/
+*.log
+
+# Checkpoints and weights
+*.pt
+*.pth
+*.ckpt
+checkpoints/
+
+# Datasets (populated by user, not tracked)
+data/santos/images/
+data/santos/labels/
+data/uatd/images/
+data/uatd/labels/
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,8 @@
+# @package _global_
+# A1: COCO init + generic CV augmentations.
+
+defaults:
+  - override /init: coco
+  - override /augmentation: generic_cv
+
+tags: ["sonar", "yolov8", "exp:a1", "init:coco", "aug:generic_cv"]

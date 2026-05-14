@@ -1,0 +1,8 @@
+# B5: our YOLOv8 checkpoint pretrained on UATD (Underwater Acoustic Target Detection).
+# Same SSS modality, different scene distribution — the most relevant prior init.
+
+name: "sonar_uatd"
+loader: "load_sonar_uatd"
+model_variant: "yolov8n"           # TODO
+weights_path: ""                   # TODO: local path to our UATD-pretrained checkpoint
+num_classes: 2

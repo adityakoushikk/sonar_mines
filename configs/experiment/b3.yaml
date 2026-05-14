@@ -1,0 +1,8 @@
+# @package _global_
+# B3: full COCO YOLOv8 checkpoint init.
+
+defaults:
+  - override /init: coco
+  - override /augmentation: none   # TODO: confirm aug setting for init-ablation suite
+
+tags: ["sonar", "yolov8", "exp:b3", "init:coco"]

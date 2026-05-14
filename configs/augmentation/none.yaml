@@ -1,0 +1,4 @@
+# A0: no augmentation. Baseline against which every aug ablation is measured.
+
+name: "none"
+pipeline: []          # empty Albumentations pipeline

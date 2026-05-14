@@ -1,0 +1,18 @@
+# A1: generic computer-vision augmentations (flips, rotation, brightness, etc.).
+# Sonar-agnostic; treats the SSS image like any natural-image dataset.
+
+name: "generic_cv"
+pipeline:
+  # Each entry is an Albumentations transform spec consumed by src/augmentations.
+  # TODO: fill probabilities and parameter ranges.
+  - _target_: albumentations.HorizontalFlip
+    p: 0.0
+  - _target_: albumentations.VerticalFlip
+    p: 0.0
+  - _target_: albumentations.RandomBrightnessContrast
+    p: 0.0
+    brightness_limit: 0.0
+    contrast_limit: 0.0
+  - _target_: albumentations.Rotate
+    limit: 0
+    p: 0.0

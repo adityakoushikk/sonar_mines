@@ -1,0 +1,8 @@
+# @package _global_
+# A5: COCO init + full sonar-physics augmentation stack (speckle + range_falloff + shadow).
+
+defaults:
+  - override /init: coco
+  - override /augmentation: physics_full
+
+tags: ["sonar", "yolov8", "exp:a5", "init:coco", "aug:physics_full"]

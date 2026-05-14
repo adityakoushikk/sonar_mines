@@ -1,0 +1,41 @@
+# @package _global_
+# Main Hydra config for the sonar-mines project.
+# Composes data / init / augmentation / experiment / training / logging groups.
+# Override any group from the command line, e.g.:
+#   python -m src.train experiment=a3
+#   python -m src.train -m experiment=a0,a1,a2,a3,a4,a5 seed=0,1,2
+
+defaults:
+  - _self_
+  - data: santos
+  - init: coco
+  - augmentation: none
+  - training: training         # TODO: confirm group/file layout; using flat training.yaml below if preferred
+  - logging: logging
+  - experiment: null
+  - override hydra/hydra_logging: colorlog
+  - override hydra/job_logging: colorlog
+
+# Project-level metadata
+project_name: "sonar-mines"   # TODO: confirm
+task_name: "train"            # TODO: confirm
+tags: ["sonar", "yolov8"]     # TODO: tighten per-run
+
+# Reproducibility
+seed: 0                       # TODO: confirm default; sweep via -m seed=0,1,2
+
+# Run mode flags
+train: true
+evaluate: true                # TODO: wire up to eval step in src/train.py
+ckpt_path: null               # TODO: optional resume checkpoint path
+
+# Metric to optimize for multirun sweeps
+optimized_metric: "metrics/mAP50-95"   # TODO: confirm metric key emitted by Ultralytics
+
+# Hydra run-directory layout
+hydra:
+  run:
+    dir: ${oc.env:PROJECT_ROOT,.}/outputs/${task_name}/runs/${now:%Y-%m-%d}_${now:%H-%M-%S}
+  sweep:
+    dir: ${oc.env:PROJECT_ROOT,.}/outputs/${task_name}/multiruns/${now:%Y-%m-%d}_${now:%H-%M-%S}
+    subdir: ${hydra.job.num}

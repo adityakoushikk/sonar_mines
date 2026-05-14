@@ -1,0 +1,8 @@
+# @package _global_
+# A0: COCO init + no augmentation. Augmentation-ablation baseline.
+
+defaults:
+  - override /init: coco
+  - override /augmentation: none
+
+tags: ["sonar", "yolov8", "exp:a0", "init:coco", "aug:none"]

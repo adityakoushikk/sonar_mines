@@ -1,0 +1,8 @@
+# @package _global_
+# A3: COCO init + range-falloff augmentation only.
+
+defaults:
+  - override /init: coco
+  - override /augmentation: range_falloff
+
+tags: ["sonar", "yolov8", "exp:a3", "init:coco", "aug:range_falloff"]
