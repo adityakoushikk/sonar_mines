@@ -2,6 +2,6 @@
 
 name: "coco"
 loader: "load_coco_full"
-model_variant: "yolov8n"     # TODO: pick the size
-weights_path: "yolov8n.pt"   # TODO: filename Ultralytics will download or local path
+model_variant: "yolov8n"     
+weights_path: "yolov8n.pt"   
 num_classes: 2

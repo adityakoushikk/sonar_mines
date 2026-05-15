@@ -10,16 +10,14 @@ defaults:
   - data: santos
   - init: coco
   - augmentation: none
-  - training: training         # TODO: confirm group/file layout; using flat training.yaml below if preferred
+  - training: training
   - logging: logging
   - experiment: null
-  - override hydra/hydra_logging: colorlog
-  - override hydra/job_logging: colorlog
 
 # Project-level metadata
 project_name: "sonar-mines"   # TODO: confirm
-task_name: "train"            # TODO: confirm
-tags: ["sonar", "yolov8"]     # TODO: tighten per-run
+task_name: "fine-tune"            # TODO: confirm
+tags: ["yolov8"]     # TODO: tighten per-run
 
 # Reproducibility
 seed: 0                       # TODO: confirm default; sweep via -m seed=0,1,2

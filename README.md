@@ -60,6 +60,22 @@ Multirun sweep (all augmentation ablations, three seeds each):
 python -m src.train -m experiment=a0,a1,a2,a3,a4,a5 seed=0,1,2
 ```
 
+## Examples
+
+Quick CPU smoke test before committing GPU time — runs the A0 (COCO init, no augmentation) experiment for 3 epochs across 3 seeds at a tiny image size, with metrics tracked in a separate `sonar-test` W&B project so the real `sonar` project stays clean:
+
+```bash
+python -m src.train -m experiment=a0 seed=0,1,2 \
+  training.epochs=3 \
+  training.device=cpu \
+  training.batch=2 \
+  training.imgsz=320 \
+  training.workers=0 \
+  logging.wandb.project=sonar-test
+```
+
+Every value here is a Hydra override, so the same pattern works for any (config-group, seed, hyperparameter) combination — flip `training.device=cuda` and drop the size/epoch overrides to promote it to a real run.
+
 ## Install
 
 Requires Python ≥ 3.10.

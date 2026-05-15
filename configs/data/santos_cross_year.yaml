@@ -1,19 +1,20 @@
 # Cross-year split of the Santos 2024 dataset, used for Experiment 3
-# (generalization across collection years).
+# (generalization across collection years). Train on the historical bulk
+# (2010, 2015, 2017, 2018) and hold out 2021 as the newest year.
 
 name: "santos_cross_year"
-root: ""                        # TODO: absolute path to data/santos/ root
-images_dir: ""                  # TODO: subdir with .jpg/.png files
-labels_dir: ""                  # TODO: subdir with YOLO-format .txt files
-class_names:                    # TODO: order must match label class indices
+root: "${oc.env:PROJECT_ROOT,.}/data/santos"
+images_dir: "images"
+labels_dir: "labels"
+class_names:
   - "MILCO"
   - "NOMBO"
 
 split:
   kind: "cross_year"
-  train_years: []               # TODO: list of years to use for train+val (e.g. [2015, 2017])
-  test_years: []                # TODO: held-out year(s) (e.g. [2021])
-  val_frac_of_train: 0.0        # TODO: fraction of train_years to hold out for validation
+  train_years: [2010, 2015, 2017, 2018]
+  test_years: [2021]
+  val_frac_of_train: 0.15
   seed: ${seed}
 
-subsample_n: null               # TODO: int or null
+subsample_n: null

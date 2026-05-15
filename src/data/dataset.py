@@ -3,20 +3,25 @@
 Ultralytics' YOLO trainer consumes a `data.yaml` file pointing at folders of
 images + label files (YOLO format). This module owns the in-memory
 representation of the dataset and the on-disk YAML emission step.
+
+Reference: https://docs.ultralytics.com/datasets/detect
 """
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Sequence
 
+import yaml
+
+_SUPPORTED_IMAGE_EXTS = (".jpg", ".jpeg", ".png")
+
 
 class SantosDataset:
     """In-memory view of the Santos SSS dataset.
 
-    Holds image paths, label paths, optional per-image metadata (year,
-    sonar parameters), and the active split assignment. The Ultralytics
-    trainer is fed a YAML pointing at a flat directory structure that this
-    class materializes via `to_ultralytics_yaml`.
+    Indexes (image, label) pairs on disk, parses the collection year from each
+    filename's ``_YYYY`` suffix, and emits an Ultralytics-style dataset YAML
+    plus per-split image-list files via :meth:`to_ultralytics_yaml`.
     """
 
     def __init__(
@@ -35,24 +40,74 @@ class SantosDataset:
             labels_dir: Subdirectory containing YOLO-format label files.
             class_names: Ordered class list; indices must match label files.
             split_indices: Optional mapping of split name -> indices into the
-                indexed image list. If None, the whole dataset is one split.
+                indexed image list. If None, the whole dataset is exposed as a
+                single ``"all"`` split.
         """
-        # TODO: scan root/images_dir, build the (image, label) pair list
-        # TODO: validate that every image has a matching label file (or no objects)
-        # TODO: store split_indices for later YAML emission
-        raise NotImplementedError("TODO: implement SantosDataset.__init__")
+        self.root = Path(root).resolve()
+        self.images_dir = self.root / images_dir
+        self.labels_dir = self.root / labels_dir
+        self.class_names = list(class_names)
+
+        image_paths: list[Path] = []
+        for ext in _SUPPORTED_IMAGE_EXTS:
+            image_paths.extend(self.images_dir.glob(f"*{ext}"))
+        self.image_paths: list[Path] = sorted(image_paths)
+        if not self.image_paths:
+            raise FileNotFoundError(f"no images found under {self.images_dir}")
+
+        self.label_paths: list[Path] = [
+            self.labels_dir / f"{p.stem}.txt" for p in self.image_paths
+        ]
+        missing = [p for p in self.label_paths if not p.exists()]
+        if missing:
+            raise FileNotFoundError(
+                f"{len(missing)} images have no label file "
+                f"(e.g. {missing[0].name}). YOLO expects an empty .txt for "
+                f"images with no annotated objects."
+            )
+
+        # Year parsed from the "<stem>_<YYYY>.<ext>" filename convention so
+        # cross_year_split can bucket items without consulting an external map.
+        self.years: list[int] = [
+            int(p.stem.rsplit("_", 1)[-1]) for p in self.image_paths
+        ]
+
+        self.split_indices: dict[str, list[int]] = (
+            {k: list(v) for k, v in split_indices.items()}
+            if split_indices is not None
+            else {"all": list(range(len(self.image_paths)))}
+        )
 
     def __len__(self) -> int:
-        """Number of (image, label) pairs in the dataset."""
-        raise NotImplementedError("TODO: implement __len__")
+        return len(self.image_paths)
 
     def to_ultralytics_yaml(self, out_dir: Path | str) -> Path:
         """Write an Ultralytics-style dataset YAML and return its path.
 
-        The YAML will reference `train`, `val`, and `test` image-list files
-        written into ``out_dir``. The class list, paths, and names are filled
-        from this dataset's state.
+        For each split in ``self.split_indices`` writes a ``<split>.txt`` file
+        of absolute image paths into ``out_dir``, then writes ``data.yaml``
+        referencing them. ``names`` is emitted as a ``{int: str}`` dict per the
+        Ultralytics spec; ``nc`` is omitted (the trainer derives it).
         """
-        # TODO: write {train,val,test}.txt image lists into out_dir
-        # TODO: write data.yaml referencing them; return the YAML path
-        raise NotImplementedError("TODO: implement to_ultralytics_yaml")
+        out_dir = Path(out_dir).resolve()
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        split_files: dict[str, Path] = {}
+        for split_name, idxs in self.split_indices.items():
+            txt_path = out_dir / f"{split_name}.txt"
+            txt_path.write_text(
+                "\n".join(str(self.image_paths[i]) for i in idxs) + "\n"
+            )
+            split_files[split_name] = txt_path
+
+        data: dict = {
+            "path": str(self.root),
+            "names": {i: name for i, name in enumerate(self.class_names)},
+        }
+        for split_name in ("train", "val", "test"):
+            if split_name in split_files:
+                data[split_name] = str(split_files[split_name])
+
+        yaml_path = out_dir / "data.yaml"
+        yaml_path.write_text(yaml.safe_dump(data, sort_keys=False))
+        return yaml_path

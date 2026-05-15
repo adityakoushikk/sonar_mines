@@ -26,6 +26,7 @@ venv/
 outputs/
 !outputs/.gitkeep
 wandb/
+runs/                       # ultralytics default save dir, in case anything leaks here
 *.log
 
 # Checkpoints and weights
@@ -39,6 +40,7 @@ data/santos/images/
 data/santos/labels/
 data/uatd/images/
 data/uatd/labels/
+data/**/*.cache             # ultralytics scan caches
 
 # OS
 .DS_Store

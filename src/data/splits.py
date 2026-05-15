@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from typing import Sequence
 
+import numpy as np
+
 
 def random_split(
     n_items: int,
@@ -21,8 +23,24 @@ def random_split(
     Returns:
         Mapping ``{"train": [...], "val": [...], "test": [...]}``.
     """
-    # TODO: shuffle indices with a seeded RNG, slice by fractions, return dict
-    raise NotImplementedError("TODO: implement random_split")
+    if not np.isclose(train_frac + val_frac + test_frac, 1.0):
+        raise ValueError(
+            f"fractions must sum to 1.0, got "
+            f"{train_frac} + {val_frac} + {test_frac} "
+            f"= {train_frac + val_frac + test_frac}"
+        )
+
+    rng = np.random.default_rng(seed)
+    perm = rng.permutation(n_items).tolist()
+
+    n_train = int(round(n_items * train_frac))
+    n_val = int(round(n_items * val_frac))
+    # Remainder absorbs rounding so no items are lost.
+    return {
+        "train": perm[:n_train],
+        "val": perm[n_train : n_train + n_val],
+        "test": perm[n_train + n_val :],
+    }
 
 
 def cross_year_split(
@@ -47,5 +65,30 @@ def cross_year_split(
     Returns:
         Mapping ``{"train": [...], "val": [...], "test": [...]}``.
     """
-    # TODO: bucket indices by year, carve val from train, return dict
-    raise NotImplementedError("TODO: implement cross_year_split")
+    train_years_set = set(train_years)
+    test_years_set = set(test_years)
+    overlap = train_years_set & test_years_set
+    if overlap:
+        raise ValueError(f"train_years and test_years overlap: {sorted(overlap)}")
+    if not 0.0 <= val_frac_of_train <= 1.0:
+        raise ValueError(
+            f"val_frac_of_train must be in [0, 1], got {val_frac_of_train}"
+        )
+
+    train_pool: list[int] = []
+    test_indices: list[int] = []
+    for i, y in enumerate(years_per_item):
+        if y in train_years_set:
+            train_pool.append(i)
+        elif y in test_years_set:
+            test_indices.append(i)
+
+    rng = np.random.default_rng(seed)
+    train_pool = rng.permutation(train_pool).tolist()
+    n_val = int(round(len(train_pool) * val_frac_of_train))
+
+    return {
+        "train": train_pool[n_val:],
+        "val": train_pool[:n_val],
+        "test": test_indices,
+    }

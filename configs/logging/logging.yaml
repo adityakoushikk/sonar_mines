@@ -1,0 +1,8 @@
+# Weights & Biases logging configuration.
+# Consumed by src/train.py to call wandb.init(...) before Ultralytics training starts.
+# Runs land at wandb.ai/<your-username>/<project>. Ultralytics' built-in W&B
+# callback attaches to the active run and logs metrics + checkpoints automatically.
+
+wandb:
+  enabled: true
+  project: "sonar"

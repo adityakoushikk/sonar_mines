@@ -1,0 +1,20 @@
+# Ultralytics training hyperparameters.
+# Settings not listed here use Ultralytics's defaults (see ultralytics/cfg/default.yaml).
+# Reference: https://docs.ultralytics.com/usage/cfg/
+
+# Core training schedule
+epochs: 50               # adjust based on convergence behavior; ~50 is a reasonable starting point
+batch: 16                # 16 fits most GPUs at imgsz 640; use -1 for auto-sizing
+imgsz: 800               # larger than default 640 because mine objects are very small
+device: cuda             # "cuda" | "cpu" | 0 | [0,1]
+workers: 8
+
+# Optimization — let Ultralytics pick
+optimizer: auto          # selects AdamW for small datasets
+
+# Early stopping — important for small dataset to prevent overfitting
+patience: 20
+
+# Reproducibility
+deterministic: true
+seed: ${seed}            # interpolated from top-level config

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any, Mapping, Sequence
 
-
+#for HOG 
 def compute_map(
     predictions: Sequence[Mapping[str, Any]],
     targets: Sequence[Mapping[str, Any]],
@@ -28,7 +28,7 @@ def compute_map(
     # TODO: compute per-class AP at each IoU; average across classes and thresholds
     raise NotImplementedError("TODO: implement compute_map")
 
-
+#For in depth error analsysi 
 def compute_per_class_ap(
     predictions: Sequence[Mapping[str, Any]],
     targets: Sequence[Mapping[str, Any]],

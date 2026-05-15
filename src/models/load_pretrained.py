@@ -40,11 +40,21 @@ def load_coco_full(weights_path: str | Path, num_classes: int) -> YOLO:
     """B3: full COCO-pretrained checkpoint, head re-shaped to num_classes.
 
     Args:
-        weights_path: Path / Ultralytics name of the .pt checkpoint.
+        weights_path: Path to a local ``.pt`` checkpoint or an Ultralytics
+            model name (e.g. ``"yolov8n.pt"``) that the library will fetch.
         num_classes: Number of detection classes for the new head.
     """
-    # TODO: YOLO(weights_path); reset detection head for num_classes
-    raise NotImplementedError("TODO: implement load_coco_full")
+    if num_classes < 1:
+        raise ValueError(f"num_classes must be >= 1, got {num_classes}")
+
+    model = YOLO(str(weights_path))
+    # Ultralytics rebuilds the Detect head (keeping backbone+neck weights, new
+    # randomly-initialised classification branch) when model.train(data=...)
+    # sees a dataset whose class count differs from the checkpoint's. Recording
+    # the target nc on the underlying nn.Module lets callers introspect it.
+    model.model.nc = num_classes
+    model.model.names = {i: f"class_{i}" for i in range(num_classes)}
+    return model
 
 
 def load_sonar_fls(weights_path: str | Path, num_classes: int) -> YOLO:
