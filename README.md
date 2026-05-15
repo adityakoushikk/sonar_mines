@@ -74,7 +74,20 @@ python -m src.train -m experiment=a0 seed=0,1,2 \
   logging.wandb.project=sonar-test
 ```
 
-Every value here is a Hydra override, so the same pattern works for any (config-group, seed, hyperparameter) combination — flip `training.device=cuda` and drop the size/epoch overrides to promote it to a real run.
+Every value here is a Hydra override, so the same pattern works for any (config-group, seed, hyperparameter) combination.
+
+A0 baseline run — full GPU training, three seeds, default hyperparameters (50 epochs, batch 16, imgsz 800), logged to the main `sonar` W&B project. This is the "true" baseline that every augmentation/init ablation is compared against:
+
+```bash
+python -m src.train -m experiment=a0 seed=0,1,2 \
+  training.epochs=50 \
+  training.batch=16 \
+  training.imgsz=800 \
+  training.device=cuda \
+  training.workers=8
+```
+
+Note on A0: Ultralytics 8.4's YOLO dataloader unconditionally bakes in four Albumentations transforms (`Blur`, `MedianBlur`, `ToGray`, `CLAHE` at `p=0.01` each) plus a few others at `p=0.0`. To keep A0 a true zero-augmentation baseline, `src/train.py` monkey-patches `ultralytics.data.augment.Albumentations.__init__` to leave `self.transform = None` whenever `cfg.augmentation.name == "none"`, which short-circuits the class's `__call__`. No batches get the Ultralytics defaults under A0. Verified against `ultralytics==8.4.50` — if you bump versions, re-check that the class API hasn't drifted.
 
 ## Install
 

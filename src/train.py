@@ -73,6 +73,25 @@ def _extract_box_metrics(results: Any, prefix: str) -> dict[str, float]:
     return out
 
 
+def _disable_ultralytics_default_albumentations() -> None:
+    """Replace Ultralytics' built-in Albumentations pipeline with a no-op.
+
+    Ultralytics 8.4 unconditionally applies Blur / MedianBlur / ToGray / CLAHE
+    at p=0.01 inside its dataloader. Setting `transform = None` short-circuits
+    the class's __call__, giving the A0 condition a literal zero-augmentation
+    floor. Verified against ultralytics==8.4.50.
+    """
+    from ultralytics.data import augment as ul_augment
+
+    def _noop_init(self, p: float = 1.0, transforms=None) -> None:
+        del transforms  # accepted for signature compatibility, intentionally unused
+        self.p = p
+        self.transform = None
+        self.contains_spatial = False
+
+    ul_augment.Albumentations.__init__ = _noop_init
+
+
 def _build_model(cfg_init: DictConfig):
     """Dispatch to the init loader named in cfg.init.loader.
 
@@ -106,6 +125,9 @@ def train(cfg: DictConfig) -> dict[str, Any]:
         # flip the setting on so model.train() logs metrics to the active run.
         ultralytics_settings.update({"wandb": True})
         wandb.init(project=cfg.logging.wandb.project)
+
+    if cfg.augmentation.name == "none":
+        _disable_ultralytics_default_albumentations()
 
     # TODO: build Albumentations pipeline from cfg.augmentation.pipeline and
     #       hook it into the Ultralytics dataloader (custom-dataset path).
