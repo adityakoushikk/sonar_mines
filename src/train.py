@@ -18,6 +18,7 @@ import torch
 import wandb
 from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig, OmegaConf
+from ultralytics import settings as ultralytics_settings
 
 from src.data import SantosDataset, cross_year_split, random_split
 from src.models import load_pretrained
@@ -101,6 +102,9 @@ def train(cfg: DictConfig) -> dict[str, Any]:
     _seed_everything(cfg.seed)
 
     if cfg.logging.wandb.enabled:
+        # Ultralytics 8.4+ ships a W&B callback but leaves it off by default;
+        # flip the setting on so model.train() logs metrics to the active run.
+        ultralytics_settings.update({"wandb": True})
         wandb.init(project=cfg.logging.wandb.project)
 
     # TODO: build Albumentations pipeline from cfg.augmentation.pipeline and
