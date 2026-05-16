@@ -20,7 +20,12 @@ from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig, OmegaConf
 from ultralytics import settings as ultralytics_settings
 
-from src.data import SantosDataset, cross_year_split, random_split
+from src.data import (
+    SantosDataset,
+    cross_year_split,
+    random_split,
+    stratified_random_split,
+)
 from src.models import load_pretrained
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -41,6 +46,14 @@ def _build_splits(cfg: DictConfig, ds: SantosDataset) -> dict[str, list[int]]:
     if split.kind == "random":
         return random_split(
             n_items=len(ds),
+            train_frac=split.train_frac,
+            val_frac=split.val_frac,
+            test_frac=split.test_frac,
+            seed=split.seed,
+        )
+    if split.kind == "stratified_random":
+        return stratified_random_split(
+            strata=ds.strata,
             train_frac=split.train_frac,
             val_frac=split.val_frac,
             test_frac=split.test_frac,

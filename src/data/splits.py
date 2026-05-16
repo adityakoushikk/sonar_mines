@@ -6,6 +6,15 @@ from typing import Sequence
 import numpy as np
 
 
+def _validate_fractions(train_frac: float, val_frac: float, test_frac: float) -> None:
+    if not np.isclose(train_frac + val_frac + test_frac, 1.0):
+        raise ValueError(
+            f"fractions must sum to 1.0, got "
+            f"{train_frac} + {val_frac} + {test_frac} "
+            f"= {train_frac + val_frac + test_frac}"
+        )
+
+
 def random_split(
     n_items: int,
     train_frac: float,
@@ -13,7 +22,7 @@ def random_split(
     test_frac: float,
     seed: int,
 ) -> dict[str, list[int]]:
-    """Shuffle and partition [0, n_items) into train/val/test by fraction.
+    """Uniform random split of ``[0, n_items)`` into train/val/test.
 
     Args:
         n_items: Number of indexable items in the dataset.
@@ -23,24 +32,64 @@ def random_split(
     Returns:
         Mapping ``{"train": [...], "val": [...], "test": [...]}``.
     """
-    if not np.isclose(train_frac + val_frac + test_frac, 1.0):
-        raise ValueError(
-            f"fractions must sum to 1.0, got "
-            f"{train_frac} + {val_frac} + {test_frac} "
-            f"= {train_frac + val_frac + test_frac}"
-        )
+    _validate_fractions(train_frac, val_frac, test_frac)
 
     rng = np.random.default_rng(seed)
     perm = rng.permutation(n_items).tolist()
 
     n_train = int(round(n_items * train_frac))
     n_val = int(round(n_items * val_frac))
-    # Remainder absorbs rounding so no items are lost.
     return {
         "train": perm[:n_train],
         "val": perm[n_train : n_train + n_val],
         "test": perm[n_train + n_val :],
     }
+
+
+def stratified_random_split(
+    strata: Sequence[str],
+    train_frac: float,
+    val_frac: float,
+    test_frac: float,
+    seed: int,
+) -> dict[str, list[int]]:
+    """Stratified random split keyed by per-item ``strata`` labels.
+
+    Shuffles and slices each unique stratum independently by the same
+    fractions, so per-stratum counts in train/val/test track the dataset
+    population (up to rounding). Eliminates the dominant source of
+    seed-to-seed variance when minority strata are small — for Santos, the 49
+    NOMBO-only images would otherwise be allocated to val with a 4x spread
+    across seeds.
+
+    Args:
+        strata: Per-item stratum label; the split length matches its length.
+        train_frac, val_frac, test_frac: Must sum to 1.0.
+        seed: RNG seed for reproducibility.
+
+    Returns:
+        Mapping ``{"train": [...], "val": [...], "test": [...]}``.
+    """
+    _validate_fractions(train_frac, val_frac, test_frac)
+
+    groups: dict[str, list[int]] = {}
+    for i, s in enumerate(strata):
+        groups.setdefault(s, []).append(i)
+
+    rng = np.random.default_rng(seed)
+    train: list[int] = []
+    val: list[int] = []
+    test: list[int] = []
+    for indices in groups.values():
+        perm = rng.permutation(indices).tolist()
+        n = len(perm)
+        n_train = int(round(n * train_frac))
+        n_val = int(round(n * val_frac))
+        train.extend(perm[:n_train])
+        val.extend(perm[n_train : n_train + n_val])
+        test.extend(perm[n_train + n_val :])
+
+    return {"train": train, "val": val, "test": test}
 
 
 def cross_year_split(

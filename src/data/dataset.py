@@ -16,6 +16,25 @@ import yaml
 _SUPPORTED_IMAGE_EXTS = (".jpg", ".jpeg", ".png")
 
 
+def _compute_stratum(label_path: Path, class_names: Sequence[str]) -> str:
+    """Map a YOLO label file to a stratification bucket.
+
+    Returns ``"unlabeled"`` for empty files, ``"<name>_only"`` for single-class
+    images, and ``"+".join(sorted(...))`` for multi-class images. Used by
+    `random_split` to keep per-class image counts proportional across splits.
+    """
+    classes_present: set[int] = set()
+    for line in label_path.read_text().splitlines():
+        line = line.strip()
+        if line:
+            classes_present.add(int(line.split()[0]))
+    if not classes_present:
+        return "unlabeled"
+    if len(classes_present) == 1:
+        return f"{class_names[next(iter(classes_present))].lower()}_only"
+    return "+".join(sorted(class_names[c].lower() for c in classes_present))
+
+
 class SantosDataset:
     """In-memory view of the Santos SSS dataset.
 
@@ -70,6 +89,12 @@ class SantosDataset:
         # cross_year_split can bucket items without consulting an external map.
         self.years: list[int] = [
             int(p.stem.rsplit("_", 1)[-1]) for p in self.image_paths
+        ]
+
+        # Per-image stratum (class-presence bucket) consumed by stratified
+        # `random_split`. Computed once at index time; label files are tiny.
+        self.strata: list[str] = [
+            _compute_stratum(p, self.class_names) for p in self.label_paths
         ]
 
         self.split_indices: dict[str, list[int]] = (

@@ -1,0 +1,22 @@
+# Stratified random split of the Santos 2024 dataset. Strata are computed by
+# SantosDataset from each label file: "unlabeled", "milco_only", "nombo_only",
+# "milco+nombo". Per-stratum counts in train/val/test track the population
+# (modulo rounding), which kills the variance from random splits over-or-under
+# representing the 49 NOMBO-only and 74 mixed-class images across seeds.
+
+name: "santos_stratified"
+root: "${oc.env:PROJECT_ROOT,.}/data/santos"
+images_dir: "images"
+labels_dir: "labels"
+class_names:
+  - "MILCO"
+  - "NOMBO"
+
+split:
+  kind: "stratified_random"
+  train_frac: 0.7
+  val_frac: 0.15
+  test_frac: 0.15
+  seed: ${seed}
+
+subsample_n: null
