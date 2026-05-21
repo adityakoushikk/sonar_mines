@@ -139,6 +139,23 @@ def _log_metrics_to_wandb(
     wandb.run.summary.update(metrics)
 
 
+def _wandb_hyperparameters(cfg: DictConfig, model: torch.nn.Module | None = None) -> dict[str, Any]:
+    """Build a W&B config dict that mirrors the resolved Hydra config."""
+    hparams = OmegaConf.to_container(cfg, resolve=True)
+    if not isinstance(hparams, dict):
+        raise TypeError(f"expected resolved cfg to be a dict, got {type(hparams).__name__}")
+
+    if model is not None:
+        hparams["model"] = {
+            "params": {
+                "total": sum(p.numel() for p in model.parameters()),
+                "trainable": sum(p.numel() for p in model.parameters() if p.requires_grad),
+            }
+        }
+
+    return hparams
+
+
 def _disable_ultralytics_default_albumentations() -> None:
     """Replace Ultralytics' built-in Albumentations pipeline with a no-op.
 
@@ -247,7 +264,11 @@ def train(cfg: DictConfig) -> dict[str, Any]:
         # Ultralytics 8.4+ ships a W&B callback but leaves it off by default;
         # flip the setting on so model.train() logs metrics to the active run.
         ultralytics_settings.update({"wandb": True})
-        run = wandb.init(project=cfg.logging.wandb.project)
+        run = wandb.init(
+            project=cfg.logging.wandb.project,
+            config=_wandb_hyperparameters(cfg),
+            tags=list(cfg.tags)
+        )
         wandb_run_id = run.id
     else:
         ultralytics_settings.update({"wandb": False})
@@ -268,6 +289,8 @@ def train(cfg: DictConfig) -> dict[str, Any]:
 
     # Model.
     model = _build_model(cfg.init)
+    if wandb.run is not None:
+        wandb.config.update(_wandb_hyperparameters(cfg, model), allow_val_change=True)
 
     # Train. Pass training cfg directly through to Ultralytics.
     train_kwargs = OmegaConf.to_container(cfg.training, resolve=True)
