@@ -35,6 +35,7 @@ Configuration is managed by **Hydra** (run/multirun) and experiment tracking is 
 | A3 | range-dependent intensity falloff |
 | A4 | acoustic shadow |
 | A5 | full sonar-physics stack (A2 + A3 + A4) |
+| A6 | generic CV + full sonar-physics stack |
 
 **Initialization ablation:**
 
@@ -57,7 +58,7 @@ python -m src.train experiment=a3 seed=0
 Multirun sweep (all augmentation ablations, three seeds each):
 
 ```bash
-python -m src.train -m experiment=a0,a1,a2,a3,a4,a5 seed=0,1,2
+python -m src.train -m experiment=a0,a1,a2,a3,a4,a5,a6 seed=0,1,2
 ```
 
 ## Examples
@@ -85,6 +86,12 @@ python -m src.train -m experiment=a0 seed=0,1,2 \
   training.imgsz=800 \
   training.device=cuda \
   training.workers=8
+```
+
+Full augmentation-ablation sweep — all A-series experiments, three seeds, both random and stratified-random splits:
+
+```bash
+python -m src.train -m experiment=a0,a1,a2,a3,a4,a5,a6 data=santos,santos_stratified seed=0,1,2 training.epochs=100 training.batch=16 training.imgsz=800 training.device=cuda training.workers=8
 ```
 
 Note on A0: Ultralytics 8.4's YOLO dataloader unconditionally bakes in four Albumentations transforms (`Blur`, `MedianBlur`, `ToGray`, `CLAHE` at `p=0.01` each) plus a few others at `p=0.0`. To keep A0 a true zero-augmentation baseline, `src/train.py` monkey-patches `ultralytics.data.augment.Albumentations.__init__` to leave `self.transform = None` whenever `cfg.augmentation.name == "none"`, which short-circuits the class's `__call__`. No batches get the Ultralytics defaults under A0. Verified against `ultralytics==8.4.50` — if you bump versions, re-check that the class API hasn't drifted.

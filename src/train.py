@@ -70,6 +70,7 @@ def _build_splits(cfg: DictConfig, ds: SantosDataset) -> dict[str, list[int]]:
     raise ValueError(f"unknown split kind: {split.kind}")
 
 
+
 def _extract_box_metrics(results: Any, prefix: str) -> dict[str, float]:
     """Pull mAP50 / mAP50-95 off an Ultralytics results object.
 
@@ -83,7 +84,59 @@ def _extract_box_metrics(results: Any, prefix: str) -> dict[str, float]:
             out[f"{prefix}/mAP50-95"] = float(box.map)
         if hasattr(box, "map50"):
             out[f"{prefix}/mAP50"] = float(box.map50)
+        if hasattr(box, "map75"):
+            out[f"{prefix}/mAP75"] = float(box.map75)
+
+        names = getattr(results, "names", {})
+        ap_class_index = getattr(box, "ap_class_index", [])
+        ap = getattr(box, "ap", [])
+        ap50 = getattr(box, "ap50", [])
+        per_class_ap: dict[str, float] = {}
+        per_class_ap50: dict[str, float] = {}
+        per_class_count: dict[str, int] = {}
+        ap_position = 0
+        for class_id in ap_class_index:
+            class_name = names.get(int(class_id), str(class_id))
+            if class_name not in per_class_count:
+                per_class_count[class_name] = 0
+                per_class_ap[class_name] = 0.0
+                per_class_ap50[class_name] = 0.0
+
+            per_class_count[class_name] += 1
+            if ap_position < len(ap):
+                per_class_ap[class_name] += float(ap[ap_position])
+            if ap_position < len(ap50):
+                per_class_ap50[class_name] += float(ap50[ap_position])
+            ap_position += 1
+
+        for class_name, ap_sum in per_class_ap.items():
+            out[f"{prefix}/ap/{class_name}"] = (
+                ap_sum / per_class_count[class_name]
+            )
+        for class_name, ap50_sum in per_class_ap50.items():
+            out[f"{prefix}/ap50/{class_name}"] = (
+                ap50_sum / per_class_count[class_name]
+            )
     return out
+
+
+def _log_metrics_to_wandb(
+    metrics: dict[str, Any],
+    cfg: DictConfig,
+    run_id: str | None,
+) -> None:
+    """Log project-owned metrics, resuming the active W&B run if needed."""
+    if not cfg.logging.wandb.enabled or not metrics:
+        return
+
+    if wandb.run is None:
+        wandb.init(
+            project=cfg.logging.wandb.project,
+            id=run_id,
+            resume="allow" if run_id is not None else None,
+        )
+    wandb.log(metrics)
+    wandb.run.summary.update(metrics)
 
 
 def _disable_ultralytics_default_albumentations() -> None:
@@ -105,6 +158,54 @@ def _disable_ultralytics_default_albumentations() -> None:
     ul_augment.Albumentations.__init__ = _noop_init
 
 
+def _transform_needs_bboxes(transform: Any) -> bool:
+    """Return True when a custom Albumentations transform needs bbox data."""
+    try:
+        targets_as_params = transform.targets_as_params
+    except Exception:
+        return False
+    return "bboxes" in targets_as_params
+
+
+def _patch_ultralytics_albumentations_for_bbox_transforms() -> None:
+    """Teach Ultralytics to pass bboxes to custom bbox-dependent transforms.
+
+    Ultralytics decides whether to pass bboxes by checking transform class names
+    against its own hardcoded list of spatial Albumentations transforms. Custom
+    transforms like AcousticShadow are invisible to that check, so we rebuild
+    the composed Albumentations transform with bbox_params when any custom
+    transform declares that it needs ``bboxes`` in ``targets_as_params``.
+    """
+    from ultralytics.data import augment as ul_augment
+
+    if getattr(ul_augment.Albumentations, "_sonar_bbox_patch", False):
+        return
+
+    original_init = ul_augment.Albumentations.__init__
+
+    def _patched_init(self, p: float = 1.0, transforms=None) -> None:
+        original_init(self, p=p, transforms=transforms)
+
+        if transforms is None or not any(_transform_needs_bboxes(t) for t in transforms):
+            return
+
+        try:
+            import albumentations as A
+        except ImportError:
+            return
+
+        self.contains_spatial = True
+        self.transform = A.Compose(
+            transforms,
+            bbox_params=A.BboxParams(format="yolo", label_fields=["class_labels"]),
+        )
+        if hasattr(self.transform, "set_random_seed"):
+            self.transform.set_random_seed(torch.initial_seed())
+
+    ul_augment.Albumentations.__init__ = _patched_init
+    ul_augment.Albumentations._sonar_bbox_patch = True
+
+
 def _build_model(cfg_init: DictConfig):
     """Dispatch to the init loader named in cfg.init.loader.
 
@@ -122,6 +223,14 @@ def _build_model(cfg_init: DictConfig):
     )
 
 
+def _build_albumentations_pipeline(cfg_augmentation: DictConfig) -> list[Any] | None:
+    """Instantiate custom Albumentations transforms from augmentation.pipeline."""
+    pipeline_cfg = cfg_augmentation.get("pipeline")
+    if not pipeline_cfg:
+        return None
+    return [hydra.utils.instantiate(transform_cfg) for transform_cfg in pipeline_cfg]
+
+
 def train(cfg: DictConfig) -> dict[str, Any]:
     """Run a training cycle and return the metric dict.
 
@@ -133,19 +242,18 @@ def train(cfg: DictConfig) -> dict[str, Any]:
     """
     _seed_everything(cfg.seed)
 
+    wandb_run_id: str | None = None
     if cfg.logging.wandb.enabled:
         # Ultralytics 8.4+ ships a W&B callback but leaves it off by default;
         # flip the setting on so model.train() logs metrics to the active run.
         ultralytics_settings.update({"wandb": True})
-        wandb.init(project=cfg.logging.wandb.project)
+        run = wandb.init(project=cfg.logging.wandb.project)
+        wandb_run_id = run.id
+    else:
+        ultralytics_settings.update({"wandb": False})
 
     if cfg.augmentation.name == "none":
         _disable_ultralytics_default_albumentations()
-
-    # TODO: build Albumentations pipeline from cfg.augmentation.pipeline and
-    #       hook it into the Ultralytics dataloader (custom-dataset path).
-    # TODO: collect slice-level test metrics (per year, per class, by bbox size)
-    #       via src.utils.eval.compute_map and push artifacts to W&B.
 
     ds = SantosDataset(
         root=cfg.data.root,
@@ -163,6 +271,24 @@ def train(cfg: DictConfig) -> dict[str, Any]:
 
     # Train. Pass training cfg directly through to Ultralytics.
     train_kwargs = OmegaConf.to_container(cfg.training, resolve=True)
+    augmentation_train_args_cfg = cfg.augmentation.get("train_args")
+    augmentation_train_args = (
+        OmegaConf.to_container(augmentation_train_args_cfg, resolve=True)
+        if augmentation_train_args_cfg is not None
+        else {}
+    )
+    if not isinstance(augmentation_train_args, dict):
+        raise TypeError(
+            "cfg.augmentation.train_args must be a mapping of Ultralytics "
+            f"train() keyword arguments, got {type(augmentation_train_args).__name__}"
+        )
+    train_kwargs.update(augmentation_train_args)
+    albumentations_pipeline = _build_albumentations_pipeline(cfg.augmentation)
+    if albumentations_pipeline is not None:
+        if any(_transform_needs_bboxes(t) for t in albumentations_pipeline):
+            _patch_ultralytics_albumentations_for_bbox_transforms()
+        train_kwargs["augmentations"] = albumentations_pipeline
+
     results = model.train(
         data=str(data_yaml),
         project=str(run_dir),
@@ -182,7 +308,9 @@ def train(cfg: DictConfig) -> dict[str, Any]:
 
     metrics: dict[str, Any] = {}
     metrics.update(_extract_box_metrics(results, prefix="metrics"))
-    metrics.update(_extract_box_metrics(test_results, prefix="test"))
+    test_metrics = _extract_box_metrics(test_results, prefix="test")
+    metrics.update(test_metrics)
+    _log_metrics_to_wandb(test_metrics, cfg, wandb_run_id)
 
     # Close the W&B run explicitly so the next Hydra multirun job starts a
     # fresh one (newer wandb versions return the previous active run from

@@ -1,0 +1,8 @@
+# @package _global_
+# A6: COCO init + generic CV plus full sonar-physics augmentation stack.
+
+defaults:
+  - override /init: coco
+  - override /augmentation: all
+
+tags: ["sonar", "yolov8", "exp:a6", "init:coco", "aug:all"]

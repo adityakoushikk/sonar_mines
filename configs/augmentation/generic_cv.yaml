@@ -1,18 +1,29 @@
-# A1: generic computer-vision augmentations (flips, rotation, brightness, etc.).
-# Sonar-agnostic; treats the SSS image like any natural-image dataset.
+# A1: generic Ultralytics augmentations passed directly to model.train().
+# Color is disabled because SSS is single-channel intensity data.
 
 name: "generic_cv"
-pipeline:
-  # Each entry is an Albumentations transform spec consumed by src/augmentations.
-  # TODO: fill probabilities and parameter ranges.
-  - _target_: albumentations.HorizontalFlip
-    p: 0.0
-  - _target_: albumentations.VerticalFlip
-    p: 0.0
-  - _target_: albumentations.RandomBrightnessContrast
-    p: 0.0
-    brightness_limit: 0.0
-    contrast_limit: 0.0
-  - _target_: albumentations.Rotate
-    limit: 0
-    p: 0.0
+train_args:
+  # Color: disabled for sonar intensity imagery.
+  hsv_h: 0.0
+  hsv_s: 0.0
+  hsv_v: 0.0
+  bgr: 0.0
+
+  # Geometry: conservative, label-preserving transforms.
+  degrees: 0.0        # Set to 5.0 to test small rotations.
+  translate: 0.1
+  scale: 0.2
+  shear: 0.0
+  perspective: 0.0
+  fliplr: 0.5
+  flipud: 0.5
+
+  # Mosaic: enabled, then disabled near the end of training.
+  mosaic: 1.0
+  close_mosaic: 15
+
+  # Disabled.
+  mixup: 0.0
+  cutmix: 0.0
+  erasing: 0.0
+  auto_augment: null

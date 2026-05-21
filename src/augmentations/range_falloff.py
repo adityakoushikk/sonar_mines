@@ -33,17 +33,53 @@ class RangeFalloff(ImageOnlyTransform):
         always_apply: bool = False,
         p: float = 0.5,
     ) -> None:
-        super().__init__(always_apply=always_apply, p=p)
+        super().__init__(p=1.0 if always_apply else p)
+        if nadir_axis not in {"x", "y"}:
+            raise ValueError(f"nadir_axis must be 'x' or 'y', got {nadir_axis!r}")
         self.nadir_axis = nadir_axis
-        self.falloff_exponent = falloff_exponent
-        self.falloff_range = falloff_range
+        self.falloff_exponent = float(falloff_exponent)
+        self.falloff_range = (float(falloff_range[0]), float(falloff_range[1]))
 
     def apply(self, img: np.ndarray, **params: Any) -> np.ndarray:
         """Return ``img`` modulated by a falloff profile along ``self.nadir_axis``."""
-        # TODO: sample exponent from self.falloff_range
-        # TODO: build 1-D profile of shape (H,) or (W,) and broadcast over img
-        # TODO: return clip(img * profile, valid range for img.dtype)
-        raise NotImplementedError("TODO: implement range falloff")
+        # 1. Sample an exponent for this image.
+        low, high = self.falloff_range
+        if low == high:
+            exponent = self.falloff_exponent
+        else:
+            exponent = float(np.random.uniform(low, high))
+
+        # No-op fast path
+        if exponent == 0.0:
+            return img
+
+        h, w = img.shape[:2]
+
+        # 2. Build a 1-D normalized range axis r in [0, 1] along the chosen axis.
+        if self.nadir_axis == "y":
+
+            # range = |distance from horizontal nadir line at image center|
+            r = np.abs(np.linspace(-1.0, 1.0, h, dtype=np.float32))   # shape (H,), V-shape
+            profile = (1.0 + r) ** (-exponent)
+            profile = profile[:, None]
+        else:  # "x"
+            # range = |distance from vertical nadir line at image center|
+            r = np.abs(np.linspace(-1.0, 1.0, w, dtype=np.float32))   # shape (W,), V-shape
+            profile = (1.0 + r) ** (-exponent)
+            profile = profile[None, :]
+
+        # 3. Broadcast to (H, W) (and (H, W, 1) for multi-channel images).
+        if img.ndim == 3:
+            profile = profile[..., None]                            # shape (H, 1, 1) or (1, W, 1)
+
+        # 4. Apply: I' = I * profile, then clip to dtype range.
+        out = img.astype(np.float32) * profile
+        if np.issubdtype(img.dtype, np.integer):
+            info = np.iinfo(img.dtype)
+            out = np.clip(out, info.min, info.max)
+        else:
+            out = np.clip(out, 0.0, 1.0)
+        return out.astype(img.dtype)
 
     def get_transform_init_args_names(self) -> tuple[str, ...]:
         return ("nadir_axis", "falloff_exponent", "falloff_range")

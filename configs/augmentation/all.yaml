@@ -1,0 +1,48 @@
+# Combined generic Ultralytics CV augmentations + full sonar-physics stack.
+
+name: "all"
+train_args:
+  # Color: disabled for sonar intensity imagery.
+  hsv_h: 0.0
+  hsv_s: 0.0
+  hsv_v: 0.0
+  bgr: 0.0
+
+  # Geometry: conservative, label-preserving transforms.
+  degrees: 0.0
+  translate: 0.1
+  scale: 0.2
+  shear: 0.0
+  perspective: 0.0
+  fliplr: 0.5
+  flipud: 0.5
+
+  # Mosaic: enabled, then disabled near the end of training.
+  mosaic: 1.0
+  close_mosaic: 15
+
+  # Disabled.
+  mixup: 0.0
+  cutmix: 0.0
+  erasing: 0.0
+  auto_augment: null
+
+pipeline:
+  - _target_: src.augmentations.speckle.SpeckleNoise
+    sigma: 0.4
+    distribution: "gamma"
+    always_apply: false
+    p: 0.5
+  - _target_: src.augmentations.range_falloff.RangeFalloff
+    nadir_axis: "x"
+    falloff_exponent: 0.0
+    falloff_range: [0.3, 1.5]
+    always_apply: false
+    p: 0.5
+  - _target_: src.augmentations.shadow.AcousticShadow
+    nadir_axis: "x"
+    shadow_length_range: [0.05, 0.20]
+    shadow_intensity: 0.1
+    nadir_position: 0.5
+    always_apply: false
+    p: 0.5

@@ -27,19 +27,3 @@ def compute_map(
     """
     # TODO: compute per-class AP at each IoU; average across classes and thresholds
     raise NotImplementedError("TODO: implement compute_map")
-
-#For in depth error analsysi 
-def compute_per_class_ap(
-    predictions: Sequence[Mapping[str, Any]],
-    targets: Sequence[Mapping[str, Any]],
-    iou_threshold: float = 0.5,
-) -> dict[int, float]:
-    """Per-class Average Precision at a single IoU threshold."""
-    # TODO: sort detections by score desc; compute precision/recall curve per class
-    raise NotImplementedError("TODO: implement compute_per_class_ap")
-
-
-def log_metrics_to_wandb(metrics: Mapping[str, Any], step: int | None = None) -> None:
-    """Push a metrics dict to the active W&B run."""
-    # TODO: import wandb; call wandb.log(dict(metrics), step=step) if a run is active
-    raise NotImplementedError("TODO: implement log_metrics_to_wandb")

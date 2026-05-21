@@ -4,6 +4,7 @@
 name: "speckle"
 pipeline:
   - _target_: src.augmentations.speckle.SpeckleNoise
-    p: 0.0                # TODO: application probability
-    sigma: 0.0            # TODO: std dev of the multiplicative speckle field
-    distribution: "rayleigh"   # TODO: "rayleigh" | "gamma" | "lognormal"
+    sigma: 0.4
+    distribution: "gamma"
+    always_apply: false
+    p: 0.5
