@@ -1,4 +1,4 @@
-"""Backbone/checkpoint loaders for the B1–B5 initialization ablation.
+"""Backbone/checkpoint loaders for the B1–B6 initialization ablation.
 
 Every loader returns an `ultralytics.YOLO` model whose head is reset to the
 number of target classes (2 for Santos: MILCO, NOMBO). Callers should not
@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import torch
 from ultralytics import YOLO
 
 
@@ -77,3 +78,39 @@ def load_sonar_uatd(weights_path: str | Path, num_classes: int) -> YOLO:
     """
     # TODO: YOLO(weights_path); reset head; sanity-check tensor shapes
     raise NotImplementedError("TODO: implement load_sonar_uatd")
+
+
+def load_ssl_benthicat(
+    weights_path: str | Path,
+    num_classes: int,
+    model_variant: str = "yolov8n",
+) -> YOLO:
+    """B6: our BYOL self-supervised backbone pretrained on BenthiCat SSS.
+
+    Builds the architecture-only YOLO, then loads just the SSL backbone weights
+    (layers ``model.0.*``..``model.9.*``) on top of the randomly-initialised
+    neck+head. The checkpoint follows the BYOL trainer's contract: a dict with a
+    ``backbone_state_dict`` whose keys are full-model names, so a non-strict
+    ``load_state_dict`` matches the backbone slice and leaves neck+head random.
+
+    Args:
+        weights_path: Path to the ``byol_benthicat_backbone.pt`` checkpoint.
+        num_classes: Number of detection classes for the new head.
+        model_variant: e.g. ``"yolov8n"``; must match the pretrained variant.
+    """
+    model = YOLO(f"{model_variant}.yaml")
+    ckpt = torch.load(weights_path, map_location="cpu")
+    # strict=False: the checkpoint only carries backbone layers, so neck+head
+    # keys are "missing" by design and stay at their architecture-only init.
+    missing, unexpected = model.model.load_state_dict(
+        ckpt["backbone_state_dict"], strict=False
+    )
+    # Every checkpointed key must map onto a real backbone parameter; an
+    # unexpected key signals a variant/architecture mismatch, not a partial load.
+    assert not unexpected, f"unexpected keys when loading SSL backbone: {unexpected}"
+
+    # Record target nc/names on the nn.Module so callers can introspect them;
+    # Ultralytics rebuilds the Detect head for num_classes at train() time.
+    model.model.nc = num_classes
+    model.model.names = {i: f"class_{i}" for i in range(num_classes)}
+    return model

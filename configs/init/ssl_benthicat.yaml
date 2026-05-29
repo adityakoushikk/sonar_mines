@@ -1,0 +1,8 @@
+# B6: our YOLOv8 backbone self-supervised (BYOL) pretrained on BenthiCat SSS.
+# Backbone-only init from unlabeled in-distribution tiles; neck+head start random.
+
+name: "ssl_benthicat"
+loader: "load_ssl_benthicat"
+model_variant: "yolov8n"
+weights_path: "pretraining/checkpoints/byol_benthicat_backbone.pt"
+num_classes: 2

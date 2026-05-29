@@ -226,17 +226,23 @@ def _patch_ultralytics_albumentations_for_bbox_transforms() -> None:
 def _build_model(cfg_init: DictConfig):
     """Dispatch to the init loader named in cfg.init.loader.
 
-    Only B3 (load_coco_full) is wired up for now; the other B1/B2/B4/B5
-    loaders are still stubs in src.models.load_pretrained.
+    B3 (load_coco_full) and B6 (load_ssl_benthicat) are wired up; the other
+    B1/B2/B4/B5 loaders are still stubs in src.models.load_pretrained.
     """
     if cfg_init.loader == "load_coco_full":
         return load_pretrained.load_coco_full(
             weights_path=cfg_init.weights_path,
             num_classes=cfg_init.num_classes,
         )
+    elif cfg_init.loader == "load_ssl_benthicat":
+        return load_pretrained.load_ssl_benthicat(
+            weights_path=cfg_init.weights_path,
+            num_classes=cfg_init.num_classes,
+            model_variant=cfg_init.get("model_variant", "yolov8n"),
+        )
     raise NotImplementedError(
         f"init.loader={cfg_init.loader!r} is not implemented yet; "
-        f"only 'load_coco_full' is wired into train.py"
+        f"only 'load_coco_full' and 'load_ssl_benthicat' are wired into train.py"
     )
 
 

@@ -7,6 +7,7 @@ from src.models.load_pretrained import (
     load_random,
     load_sonar_fls,
     load_sonar_uatd,
+    load_ssl_benthicat,
 )
 
 __all__ = [
@@ -15,5 +16,6 @@ __all__ = [
     "load_coco_full",
     "load_sonar_fls",
     "load_sonar_uatd",
+    "load_ssl_benthicat",
     "HOGClassifier",
 ]

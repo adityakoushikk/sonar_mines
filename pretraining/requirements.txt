@@ -1,0 +1,15 @@
+# Isolated SSL/Modal env for BYOL pretraining (root requirements.txt stays unchanged).
+# ultralytics + albumentations are here because the SSL code imports the YOLO
+# backbone and src.augmentations (SpeckleNoise/RangeFalloff) on Modal.
+torch>=2.1
+torchvision>=0.16
+ultralytics>=8.2
+albumentations>=1.4
+lightly>=1.5,<1.6
+webdataset>=0.2
+accelerate>=0.30
+wandb>=0.16,<0.18
+pillow
+numpy
+pyyaml
+modal>=0.64
