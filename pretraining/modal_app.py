@@ -73,9 +73,9 @@ _OUT_DIR = f"{_DATA_DIR}/checkpoints"
     # (multi-GPU needs equal batches/rank; train_byol enforces this).
     gpu="A100",
     # GOTCHA: Modal's default function timeout is 300s (5 min). SSL pretraining
-    # runs for hours, so we raise it to the 8h ceiling; without this the run is
-    # killed mid-epoch.
-    timeout=8 * 60 * 60,
+    # runs for hours (a single-A100 100-epoch run is ~10h), so we set 12h of
+    # headroom; without this the run is killed mid-epoch. (Modal max is 24h.)
+    timeout=12 * 60 * 60,
     # Mount the persistent Volume so shards are readable and checkpoints persist.
     volumes={_DATA_DIR: vol},
     # GOTCHA: the W&B API key is injected from a Modal Secret literally named
@@ -168,6 +168,70 @@ def inspect_volume() -> list[str]:
     for line in found:
         print(line)
     return found
+
+
+@app.function(
+    # Only this function needs 7-Zip, so give it its own image — the training
+    # image (above) stays unchanged. p7zip-full provides the `7za` extractor.
+    image=image.apt_install("p7zip-full"),
+    volumes={_DATA_DIR: vol},
+    cpu=4.0,
+    timeout=12 * 60 * 60,
+)
+def preprocess_volume() -> dict:
+    """Extract uploaded BenthiCat .7z archives and pack them into WebDataset
+    shards entirely on the Volume — no large local disk, no shard upload.
+
+    Prereq: upload the archives to /data/raw first::
+
+        modal volume put sonar-ssl-data <local-dir-of-.7z> /raw
+
+    Then run::
+
+        modal run pretraining/modal_app.py::preprocess_volume
+
+    Processes one archive at a time (extract -> pack -> delete -> commit) so the
+    transient .npy on the Volume stays ~one sector, not the full ~560 GB.
+    """
+    import glob
+    import os
+    import shutil
+    import subprocess
+
+    from pretraining.preprocess import preprocess
+
+    vol.reload()
+    raw_dir = f"{_DATA_DIR}/raw"
+    os.makedirs(_SHARDS_DIR, exist_ok=True)
+
+    archives = sorted(glob.glob(f"{raw_dir}/*.7z"))
+    if not archives:
+        raise FileNotFoundError(
+            f"no .7z archives under {raw_dir}; upload them with "
+            "`modal volume put sonar-ssl-data <dir> /raw` first"
+        )
+
+    total = 0
+    for arc in archives:
+        sector = os.path.splitext(os.path.basename(arc))[0]
+        tmp = f"{_DATA_DIR}/_extract/{sector}"
+        os.makedirs(tmp, exist_ok=True)
+        # p7zip-full's `7za` extracts .7z. -o<dir> takes no space; -y = assume yes.
+        subprocess.run(["7za", "x", arc, f"-o{tmp}", "-y"], check=True)
+        # Sector-unique shard pattern so every shard still matches benthicat-*.tar.
+        result = preprocess(tmp, _SHARDS_DIR, pattern=f"benthicat-{sector}-%06d.tar")
+        total += int(result["n_tiles"])
+        shutil.rmtree(tmp)        # free this sector's .npy before the next one
+        vol.commit()              # persist shards incrementally (crash-safe)
+        print(
+            f"[preprocess_volume] {sector}: {result['n_tiles']} tiles "
+            f"(running total {total})"
+        )
+
+    shutil.rmtree(f"{_DATA_DIR}/_extract", ignore_errors=True)
+    vol.commit()
+    print(f"[preprocess_volume] DONE: {total} tiles -> {_SHARDS_DIR}")
+    return {"n_tiles": total}
 
 
 @app.local_entrypoint()
