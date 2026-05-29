@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Callable
 
 import torch
-from accelerate import Accelerator
+from accelerate import Accelerator, DataLoaderConfiguration
 from accelerate.utils import DistributedDataParallelKwargs
 from lightly.loss import NegativeCosineSimilarity
 from lightly.models.modules import BYOLPredictionHead, BYOLProjectionHead
@@ -141,7 +141,11 @@ METHOD_REGISTRY: dict[str, Callable[[TrainConfig], tuple[object, BYOL, int]]] = 
 }
 
 
-def train_byol(cfg: TrainConfig, method: str = "byol") -> str:
+def train_byol(
+    cfg: TrainConfig,
+    method: str = "byol",
+    on_checkpoint: Callable[[str], None] | None = None,
+) -> str:
     """Run self-supervised pretraining and return the final checkpoint path.
 
     Uses ``accelerate.Accelerator`` for device placement and mixed precision.
@@ -173,10 +177,26 @@ def train_byol(cfg: TrainConfig, method: str = "byol") -> str:
     cuda = torch.cuda.is_available()
     # find_unused_parameters=True keeps DDP happy about the frozen momentum nets.
     ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
+    # dispatch_batches=False: each rank must iterate its OWN WebDataset (we shard
+    # with split_by_node). Accelerate defaults this to True for IterableDatasets,
+    # which would make only rank 0 read data — and our split_by_node would then
+    # see just 1/world_size of the shards: silent data loss on multi-GPU.
+    dl_config = DataLoaderConfiguration(dispatch_batches=False)
     accelerator = Accelerator(
         mixed_precision=cfg.mixed_precision if cuda else "no",
+        dataloader_config=dl_config,
         kwargs_handlers=[ddp_kwargs],
     )
+
+    # Multi-GPU + an unbounded WebDataset can hand ranks unequal batch counts,
+    # which deadlocks DDP at the epoch boundary (one rank stops all-reducing while
+    # the others wait on it). A fixed epoch_length makes every rank yield the same
+    # number of batches. Single-process runs are unaffected.
+    if accelerator.num_processes > 1 and cfg.epoch_length is None:
+        raise ValueError(
+            "multi-GPU runs require cfg.epoch_length (set it to ~tiles_per_rank) "
+            "so every rank yields equal batches and DDP doesn't hang at epoch end"
+        )
 
     # W&B only on the main process, only when asked.
     use_wandb = cfg.wandb_enabled and accelerator.is_main_process
@@ -257,6 +277,8 @@ def train_byol(cfg: TrainConfig, method: str = "byol") -> str:
             save_backbone_checkpoint(
                 yolo, final_path, channels=channels, epoch=epoch, variant=cfg.variant
             )
+            if on_checkpoint is not None:
+                on_checkpoint(str(final_path))
 
     # Final checkpoint (always, main process). The backbone shares tensors with
     # `yolo`, so its trained weights are already reflected in yolo.model.
@@ -265,6 +287,8 @@ def train_byol(cfg: TrainConfig, method: str = "byol") -> str:
         save_backbone_checkpoint(
             yolo, final_path, channels=channels, epoch=cfg.epochs - 1, variant=cfg.variant
         )
+        if on_checkpoint is not None:
+            on_checkpoint(str(final_path))
         if use_wandb:
             import wandb
 

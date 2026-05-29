@@ -67,10 +67,11 @@ _OUT_DIR = f"{_DATA_DIR}/checkpoints"
 
 
 @app.function(
-    # Default A100:2. SCALING NOTE: bump to "A100:4" (or "A100-80GB:4") by editing
-    # this string after profiling throughput vs. the BYOL batch size — the trainer
-    # already reads accelerator.num_processes, so no code change is needed.
-    gpu="A100:2",
+    # Default to a SINGLE A100: the yolov8n backbone is tiny and data-bound, so one
+    # GPU is the right first run, and it avoids the multi-GPU DDP path that can't be
+    # smoke-tested locally. SCALING: set "A100:2"/"A100:4" AND pass --epoch-length
+    # (multi-GPU needs equal batches/rank; train_byol enforces this).
+    gpu="A100",
     # GOTCHA: Modal's default function timeout is 300s (5 min). SSL pretraining
     # runs for hours, so we raise it to the 8h ceiling; without this the run is
     # killed mid-epoch.
@@ -133,7 +134,9 @@ def train(
         mixed_precision="bf16",
     )
 
-    ckpt_path = train_byol(cfg)
+    # Commit the Volume after every checkpoint write (not just at the end) so a
+    # crash during a multi-hour run still leaves the latest backbone durable.
+    ckpt_path = train_byol(cfg, on_checkpoint=lambda _path: vol.commit())
 
     # GOTCHA: writes to a Volume are buffered — without commit() the checkpoint is
     # NOT visible to other functions / future runs / `modal volume get`. Commit
@@ -173,6 +176,7 @@ def main(
     batch_size: int = 256,
     num_workers: int = 8,
     wandb_enabled: bool = True,
+    epoch_length: int | None = None,
 ) -> None:
     """Local entry point: kick off remote GPU training and print the result.
 
@@ -183,5 +187,6 @@ def main(
         batch_size=batch_size,
         num_workers=num_workers,
         wandb_enabled=wandb_enabled,
+        epoch_length=epoch_length,
     )
     print(f"[modal] BYOL pretraining finished; checkpoint on Volume at: {ckpt_path}")
