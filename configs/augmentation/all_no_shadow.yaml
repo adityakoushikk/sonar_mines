@@ -1,7 +1,6 @@
-# A1: generic Ultralytics augmentations passed directly to model.train().
-# Color is disabled because SSS is single-channel intensity data.
+# Combined generic Ultralytics CV augmentations + sonar physics stack without acoustic shadow.
 
-name: "generic_cv"
+name: "all_no_shadow"
 train_args:
   # Color: disabled for sonar intensity imagery.
   hsv_h: 0.0
@@ -10,7 +9,7 @@ train_args:
   bgr: 0.0
 
   # Geometry: conservative, label-preserving transforms.
-  degrees: 0.0        # Set to 5.0 to test small rotations.
+  degrees: 0.0
   translate: 0.1
   scale: 0.2
   shear: 0.0
@@ -28,3 +27,16 @@ train_args:
   copy_paste: 0.0
   erasing: 0.0
   auto_augment: null
+
+pipeline:
+  - _target_: src.augmentations.speckle.SpeckleNoise
+    sigma: 0.15
+    distribution: "gamma"
+    always_apply: false
+    p: 0.25
+  - _target_: src.augmentations.range_falloff.RangeFalloff
+    nadir_axis: "x"
+    falloff_exponent: 0.0
+    falloff_range: [0.1, 0.5]
+    always_apply: false
+    p: 0.25

@@ -1,8 +1,8 @@
 # @package _global_
-# B2: ImageNet-backbone init.
+# B2: COCO backbone/neck with randomly initialized detector weights.
 
 defaults:
-  - override /init: imagenet
-  - override /augmentation: none   # TODO: confirm aug setting for init-ablation suite
+  - override /init: random_detector
+  - override /augmentation: all
 
-tags: ["sonar", "yolov8", "exp:b2", "init:imagenet"]
+tags: ["sonar", "yolov8", "exp:b2", "init:random_detector", "aug:all"]

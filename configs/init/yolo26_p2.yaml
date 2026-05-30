@@ -1,0 +1,8 @@
+# B4: YOLO26 P2 architecture with compatible COCO weights from YOLO26n.
+# Ultralytics ships P2 as architecture-only YAML, so the detector stays random.
+
+name: "yolo26_p2"
+loader: "load_coco_partial_arch"
+model_variant: "yolo26n-p2"
+weights_path: "yolo26n.pt"
+num_classes: 2              # MILCO, NOMBO

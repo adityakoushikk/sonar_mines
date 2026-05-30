@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import random
+from inspect import signature
 from pathlib import Path
 from typing import Any
 
@@ -226,18 +227,24 @@ def _patch_ultralytics_albumentations_for_bbox_transforms() -> None:
 def _build_model(cfg_init: DictConfig):
     """Dispatch to the init loader named in cfg.init.loader.
 
-    Only B3 (load_coco_full) is wired up for now; the other B1/B2/B4/B5
-    loaders are still stubs in src.models.load_pretrained.
+    Loader kwargs are taken from cfg.init and filtered against the selected
+    function signature, so init configs may carry fields that only some
+    loaders use (e.g. random init has model_variant but no weights_path).
     """
-    if cfg_init.loader == "load_coco_full":
-        return load_pretrained.load_coco_full(
-            weights_path=cfg_init.weights_path,
-            num_classes=cfg_init.num_classes,
+    loader = getattr(load_pretrained, cfg_init.loader, None)
+    if loader is None:
+        raise NotImplementedError(
+            f"init.loader={cfg_init.loader!r} is not implemented in "
+            "src.models.load_pretrained"
         )
-    raise NotImplementedError(
-        f"init.loader={cfg_init.loader!r} is not implemented yet; "
-        f"only 'load_coco_full' is wired into train.py"
-    )
+
+    loader_params = signature(loader).parameters
+    kwargs = {
+        key: cfg_init[key]
+        for key in loader_params
+        if key in cfg_init and cfg_init[key] is not None
+    }
+    return loader(**kwargs)
 
 
 def _build_albumentations_pipeline(cfg_augmentation: DictConfig) -> list[Any] | None:

@@ -1,8 +1,8 @@
 # @package _global_
-# B4: Valdenegro-Toro sonar-FLS pretrained init.
+# B4: YOLO26 P2 architecture with compatible COCO weights.
 
 defaults:
-  - override /init: sonar_fls
-  - override /augmentation: none   # TODO: confirm aug setting for init-ablation suite
+  - override /init: yolo26_p2
+  - override /augmentation: all   # TODO: confirm aug setting for init-ablation suite
 
-tags: ["sonar", "yolov8", "exp:b4", "init:sonar_fls"]
+tags: ["sonar", "yolo26", "exp:b4", "init:yolo26_p2"]

@@ -2,22 +2,42 @@
 # Composed pipeline; each component is also runnable in isolation.
 
 name: "physics_full"
+train_args:
+  # Disable native Ultralytics augmentations; isolate the custom physics stack.
+  hsv_h: 0.0
+  hsv_s: 0.0
+  hsv_v: 0.0
+  bgr: 0.0
+  degrees: 0.0
+  translate: 0.0
+  scale: 0.0
+  shear: 0.0
+  perspective: 0.0
+  fliplr: 0.0
+  flipud: 0.0
+  mosaic: 0.0
+  close_mosaic: 0
+  mixup: 0.0
+  cutmix: 0.0
+  copy_paste: 0.0
+  erasing: 0.0
+  auto_augment: null
 pipeline:
   - _target_: src.augmentations.speckle.SpeckleNoise
-    sigma: 0.4
+    sigma: 0.15
     distribution: "gamma"
     always_apply: false
-    p: 0.5
+    p: 0.25
   - _target_: src.augmentations.range_falloff.RangeFalloff
     nadir_axis: "x"
     falloff_exponent: 0.0
-    falloff_range: [0.3, 1.5]
+    falloff_range: [0.1, 0.5]
     always_apply: false
-    p: 0.5
+    p: 0.25
   - _target_: src.augmentations.shadow.AcousticShadow
     nadir_axis: "x"
-    shadow_length_range: [0.05, 0.20]
-    shadow_intensity: 0.1
+    shadow_length_range: [0.02, 0.08]
+    shadow_intensity: 0.4
     nadir_position: 0.5
     always_apply: false
-    p: 0.5
+    p: 0.15

@@ -2,10 +2,30 @@
 # (distance from the nadir line), producing a characteristic brightness gradient.
 
 name: "range_falloff"
+train_args:
+  # Disable native Ultralytics augmentations; isolate range falloff only.
+  hsv_h: 0.0
+  hsv_s: 0.0
+  hsv_v: 0.0
+  bgr: 0.0
+  degrees: 0.0
+  translate: 0.0
+  scale: 0.0
+  shear: 0.0
+  perspective: 0.0
+  fliplr: 0.0
+  flipud: 0.0
+  mosaic: 0.0
+  close_mosaic: 0
+  mixup: 0.0
+  cutmix: 0.0
+  copy_paste: 0.0
+  erasing: 0.0
+  auto_augment: null
 pipeline:
   - _target_: src.augmentations.range_falloff.RangeFalloff
     nadir_axis: "x"
     falloff_exponent: 0.0
-    falloff_range: [0.3, 1.5]
+    falloff_range: [0.1, 0.5]
     always_apply: false
-    p: 0.5
+    p: 0.25

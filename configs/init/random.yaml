@@ -2,6 +2,6 @@
 
 name: "random"
 loader: "load_random"       # function name in src/models/load_pretrained.py
-model_variant: "yolov8n"    # TODO: "yolov8n" | "yolov8s" | "yolov8m" | ...
+model_variant: "yolov8n"    # "yolov8n" | "yolov8s" | "yolov8m" | ...
 weights_path: null          # not used for random init
 num_classes: 2              # MILCO, NOMBO

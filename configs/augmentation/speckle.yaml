@@ -2,9 +2,29 @@
 # speckle; this is the simplest sonar-physics-informed augmentation.
 
 name: "speckle"
+train_args:
+  # Disable native Ultralytics augmentations; isolate speckle noise only.
+  hsv_h: 0.0
+  hsv_s: 0.0
+  hsv_v: 0.0
+  bgr: 0.0
+  degrees: 0.0
+  translate: 0.0
+  scale: 0.0
+  shear: 0.0
+  perspective: 0.0
+  fliplr: 0.0
+  flipud: 0.0
+  mosaic: 0.0
+  close_mosaic: 0
+  mixup: 0.0
+  cutmix: 0.0
+  copy_paste: 0.0
+  erasing: 0.0
+  auto_augment: null
 pipeline:
   - _target_: src.augmentations.speckle.SpeckleNoise
-    sigma: 0.4
+    sigma: 0.15
     distribution: "gamma"
     always_apply: false
-    p: 0.5
+    p: 0.25

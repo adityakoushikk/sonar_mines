@@ -1,0 +1,7 @@
+# Pretrained YOLOv8 backbone/neck with a randomly initialized Detect head.
+
+name: "random_detector"
+loader: "load_random_detector"
+model_variant: "yolov8n"
+weights_path: "yolov8n.pt"
+num_classes: 2              # MILCO, NOMBO
