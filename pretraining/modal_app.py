@@ -49,6 +49,11 @@ _OUT_DIR = f"{_DATA_DIR}/checkpoints"
     # multi-GPU DDP path that can't be smoke-tested locally. To scale, set
     # "A100:N" AND pass --epoch-length (train_byol requires it for multi-GPU).
     gpu="A100",
+    # The run is augmentation-bound (the A100 sits ~95% idle waiting on CPU-side
+    # speckle/range-falloff/crops), so give the DataLoader workers real cores —
+    # throughput scales ~linearly with them. Keep num_workers <= cpu and <= the
+    # shard count (~80-100) so no worker starves.
+    cpu=32.0,
     timeout=12 * 60 * 60,  # default is 300s; a 100-epoch single-A100 run is ~10h
     volumes={_DATA_DIR: vol},
     secrets=[modal.Secret.from_name("wandb")],  # WANDB_API_KEY from the "wandb" secret
@@ -56,7 +61,7 @@ _OUT_DIR = f"{_DATA_DIR}/checkpoints"
 def train(
     epochs: int = 100,
     batch_size: int = 256,
-    num_workers: int = 8,
+    num_workers: int = 32,
     wandb_enabled: bool = True,
     epoch_length: int | None = None,
     variant: str = "yolov8n",
@@ -245,7 +250,7 @@ def preprocess_volume() -> dict:
 def main(
     epochs: int = 100,
     batch_size: int = 256,
-    num_workers: int = 8,
+    num_workers: int = 32,
     wandb_enabled: bool = True,
     epoch_length: int | None = None,
     variant: str = "yolov8n",
