@@ -42,24 +42,35 @@ def test_backbone_shares_modules_with_yolo() -> None:
     assert backbone[0] is yolo.model.model[0]
 
 
-def test_backbone_state_dict_keys_are_single_digit() -> None:
-    """Keys must be full-model names model.0.* .. model.9.* (not re-indexed)."""
+def test_backbone_cut_is_inferred_from_yaml() -> None:
+    """The cut is read from the architecture yaml: yolov8n's backbone is 10."""
+    from pretraining.ssl.backbone import _infer_backbone_cut
+
     yolo, _, _ = extract_yolo_backbone("yolov8n")
-    sd = backbone_state_dict(yolo, cut=10)
+    assert _infer_backbone_cut(yolo) == 10  # stem..SPPF are layers 0..9
+
+
+def test_backbone_state_dict_within_inferred_cut() -> None:
+    """All kept keys are backbone layers (index < the inferred cut)."""
+    from pretraining.ssl.backbone import _infer_backbone_cut, _layer_index
+
+    yolo, _, _ = extract_yolo_backbone("yolov8n")
+    cut = _infer_backbone_cut(yolo)
+    sd = backbone_state_dict(yolo)  # cut inferred from yaml, not hardcoded
 
     assert sd, "expected a non-empty backbone state dict"
     for key in sd:
-        # "model.<one digit>." prefix; layer 10+ (neck/head) must be excluded.
-        head, idx, *_ = key.split(".")
-        assert head == "model"
-        assert idx.isdigit() and len(idx) == 1, f"unexpected key {key}"
+        idx = _layer_index(key)
+        assert idx is not None and idx < cut, f"non-backbone key {key!r}"
 
 
-def test_backbone_state_dict_rejects_nondefault_cut() -> None:
-    """The single-digit regex only holds for cut==10; other cuts must raise."""
+def test_backbone_state_dict_explicit_cut_is_subset() -> None:
+    """An explicit smaller cut yields a strict subset (no longer raises)."""
     yolo, _, _ = extract_yolo_backbone("yolov8n")
-    with pytest.raises(ValueError):
-        backbone_state_dict(yolo, cut=8)
+    full = set(backbone_state_dict(yolo))            # inferred cut == 10
+    smaller = set(backbone_state_dict(yolo, cut=8))  # layers 0..7 only
+    assert smaller, "expected a non-empty subset"
+    assert smaller < full
 
 
 def test_save_checkpoint_matches_contract(tmp_path: Path) -> None:

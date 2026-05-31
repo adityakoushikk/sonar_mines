@@ -108,6 +108,7 @@ def train(
     num_workers: int = 8,
     wandb_enabled: bool = True,
     epoch_length: int | None = None,
+    variant: str = "yolov8n",
 ) -> str:
     """Run BYOL pretraining on the GPU box and persist the checkpoint.
 
@@ -118,6 +119,10 @@ def train(
         wandb_enabled: Log metrics to W&B (uses the mounted "wandb" secret).
         epoch_length: Samples/epoch for the streaming dataset (None = one full
             pass over the shards).
+        variant: YOLO architecture to pretrain the backbone of, e.g.
+            ``"yolov8n"`` or ``"yolo26n"``. The backbone cut is inferred from the
+            variant's yaml, so no other change is needed to switch. The downstream
+            B6 fine-tune must use the same variant (``init.model_variant``).
 
     Returns:
         The checkpoint path on the Volume (under ``/data/checkpoints``).
@@ -142,7 +147,7 @@ def train(
     cfg = TrainConfig(
         shards=shards,
         out_dir=_OUT_DIR,
-        variant="yolov8n",
+        variant=variant,
         epochs=epochs,
         batch_size=batch_size,
         num_workers=num_workers,
@@ -363,10 +368,12 @@ def main(
     num_workers: int = 8,
     wandb_enabled: bool = True,
     epoch_length: int | None = None,
+    variant: str = "yolov8n",
 ) -> None:
     """Local entry point: kick off remote GPU training and print the result.
 
     Runs on your laptop (no GPU needed); ``.remote()`` ships the call to Modal.
+    Pass ``--variant yolo26n`` to pretrain a YOLO26 backbone instead of YOLOv8n.
     """
     ckpt_path = train.remote(
         epochs=epochs,
@@ -374,5 +381,6 @@ def main(
         num_workers=num_workers,
         wandb_enabled=wandb_enabled,
         epoch_length=epoch_length,
+        variant=variant,
     )
     print(f"[modal] BYOL pretraining finished; checkpoint on Volume at: {ckpt_path}")

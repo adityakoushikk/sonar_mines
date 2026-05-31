@@ -53,7 +53,7 @@ def test_train_byol_cpu_smoke_and_load(tmp_path: Path) -> None:
     )
 
     ckpt_path = train_byol(cfg)
-    assert Path(ckpt_path).name == "byol_benthicat_backbone.pt"
+    assert Path(ckpt_path).name == "byol_benthicat_yolov8n.pt"
     assert Path(ckpt_path).exists()
 
     ckpt = torch.load(ckpt_path, map_location="cpu")

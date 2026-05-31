@@ -1,4 +1,4 @@
-"""Empirical gate for the YOLOv8 backbone layer cut + checkpoint round-trip.
+"""Empirical gate for the YOLO backbone layer cut + checkpoint round-trip.
 
 This is the load-bearing contract test between the SSL trainer and the
 supervised loader: it proves that weights *trained* in ``pretraining/`` arrive
@@ -9,11 +9,14 @@ through the real :func:`load_ssl_benthicat` seam, and then assert three things:
   (a) every saved backbone tensor reappears byte-for-byte in the reloaded model
       (the cut + key naming actually round-trips, not just "loads without error");
   (b) a strict=False load on a *fresh* model has no unexpected keys and every
-      *missing* key is a neck/head layer (index >= 10) — i.e. the cut at 10 keeps
-      exactly the backbone and nothing leaks the other way;
+      *missing* key is a neck/head layer (index >= the variant's inferred cut) —
+      i.e. the cut keeps exactly the backbone and nothing leaks the other way;
   (c) the reloaded detector records the requested class count.
 
-Builds YOLO from the bundled ``*.yaml`` (no network), so this stays hermetic.
+Parametrized over ``yolov8n`` and ``yolo26n`` so the v8/v26 option is both
+covered by the gate. The yaml builds with no network (hermetic); a variant whose
+yaml is absent in the installed ultralytics is *skipped*, but a variant that
+builds yet fails to extract/round-trip is a real failure (not hidden).
 """
 from __future__ import annotations
 
@@ -26,8 +29,10 @@ pytest.importorskip("torch")
 pytest.importorskip("ultralytics")
 
 import torch
+from ultralytics import YOLO
 
 from pretraining.ssl.backbone import (
+    _infer_backbone_cut,
     backbone_state_dict,
     extract_yolo_backbone,
     save_backbone_checkpoint,
@@ -45,9 +50,28 @@ def _layer_index(key: str) -> int:
     return int(match.group(1))
 
 
-def test_backbone_checkpoint_roundtrips_through_load_seam(tmp_path: Path) -> None:
+def _require_variant(variant: str) -> None:
+    """Skip iff this ultralytics cannot even build the variant's yaml.
+
+    Separated from extraction so that a *buildable* variant which then fails to
+    extract or round-trip surfaces as a real failure rather than a silent skip —
+    that failure mode is exactly what this gate exists to catch (e.g. a variant
+    whose backbone is not a clean sequential prefix).
+    """
+    try:
+        YOLO(f"{variant}.yaml")
+    except Exception as exc:  # noqa: BLE001 - variant yaml absent in this install
+        pytest.skip(f"variant {variant!r} yaml unavailable in this ultralytics: {exc}")
+
+
+@pytest.mark.parametrize("variant", ["yolov8n", "yolo26n"])
+def test_backbone_checkpoint_roundtrips_through_load_seam(
+    tmp_path: Path, variant: str
+) -> None:
     """Trained backbone weights survive save -> load_ssl_benthicat exactly."""
-    yolo, backbone, channels = extract_yolo_backbone("yolov8n")
+    _require_variant(variant)
+    yolo, backbone, channels = extract_yolo_backbone(variant)
+    cut = _infer_backbone_cut(yolo)  # variant-specific backbone boundary
     assert channels > 0  # inferred by a forward pass, never hardcoded
 
     # Simulate a training step: shift every backbone weight off its init so a
@@ -62,12 +86,10 @@ def test_backbone_checkpoint_roundtrips_through_load_seam(tmp_path: Path) -> Non
     assert saved, "expected a non-empty backbone state dict"
 
     ckpt_path = tmp_path / "checkpoints" / "byol_benthicat_backbone.pt"
-    save_backbone_checkpoint(
-        yolo, ckpt_path, channels=channels, epoch=3, variant="yolov8n"
-    )
+    save_backbone_checkpoint(yolo, ckpt_path, channels=channels, epoch=3, variant=variant)
 
     # The real downstream seam: build a fresh detector and load the SSL backbone.
-    model = load_ssl_benthicat(ckpt_path, num_classes=2, model_variant="yolov8n")
+    model = load_ssl_benthicat(ckpt_path, num_classes=2, model_variant=variant)
 
     # (a) Every saved key must reappear byte-for-byte in the reloaded model.
     reloaded = model.model.state_dict()
@@ -76,9 +98,9 @@ def test_backbone_checkpoint_roundtrips_through_load_seam(tmp_path: Path) -> Non
         assert torch.equal(reloaded[key], tensor), f"weight changed on round-trip: {key!r}"
 
     # (b) A strict=False load on a FRESH model: nothing unexpected, and every
-    # missing key is a neck/head layer (index >= 10) — the cut keeps backbone
-    # layers 0..9 and only those.
-    fresh_yolo, _, _ = extract_yolo_backbone("yolov8n")
+    # missing key is a neck/head layer (index >= cut) — the cut keeps exactly the
+    # backbone layers 0..cut-1 and only those.
+    fresh_yolo, _, _ = extract_yolo_backbone(variant)
     ckpt = torch.load(ckpt_path, map_location="cpu")
     missing, unexpected = fresh_yolo.model.load_state_dict(
         ckpt["backbone_state_dict"], strict=False
@@ -86,7 +108,7 @@ def test_backbone_checkpoint_roundtrips_through_load_seam(tmp_path: Path) -> Non
     assert unexpected == [], f"unexpected keys when loading backbone slice: {unexpected}"
     assert missing, "expected neck/head keys to be reported missing"
     for key in missing:
-        assert _layer_index(key) >= 10, f"missing key inside the backbone cut: {key!r}"
+        assert _layer_index(key) >= cut, f"missing key inside the backbone cut: {key!r}"
 
     # (c) The reloaded detector records the requested class count.
     assert model.model.nc == 2

@@ -103,20 +103,36 @@ modal run pretraining/modal_app.py --epochs 1 --epoch-length 5000 --batch-size 6
 modal run pretraining/modal_app.py --epochs 100                                      # full run
 ```
 
+**Choosing the architecture (v8 or v26).** Default is `yolov8n`; pass
+`--variant yolo26n` to pretrain a YOLO26 backbone instead (the backbone cut is
+inferred from the variant's yaml, so nothing else changes). The checkpoint name
+encodes the variant, so the two never collide:
+
+```bash
+modal run pretraining/modal_app.py --epochs 100 --variant yolo26n   # -> byol_benthicat_yolo26n.pt
+```
+
 ### 4. Pull the checkpoint
 
 ```bash
-modal volume get sonar-ssl-data /checkpoints/byol_benthicat_backbone.pt \
-  pretraining/checkpoints/byol_benthicat_backbone.pt
+modal volume get sonar-ssl-data /checkpoints/byol_benthicat_yolov8n.pt \
+  pretraining/checkpoints/byol_benthicat_yolov8n.pt
+# yolo26n run instead: swap both names to byol_benthicat_yolo26n.pt
 ```
 
-This is the path baked into `configs/init/ssl_benthicat.yaml`.
+These are the paths baked into `configs/init/ssl_benthicat.yaml` (v8) and
+`configs/init/ssl_benthicat_yolo26.yaml` (v26).
 
-### 5. Fine-tune B6 on Santos (vs. the COCO baseline)
+### 5. Fine-tune B6 on Santos
+
+Pick the init that matches the backbone you pretrained — `experiment=b6` (YOLOv8n,
+compare against A6/B1/B2) or `experiment=b6_yolo26` (YOLO26, compare against
+B3/B4):
 
 ```bash
-python -m src.train -m experiment=b3,b6 seed=0,1,2 \
+python -m src.train -m experiment=a6,b6 seed=0,1,2 \
   training.epochs=100 training.batch=16 training.imgsz=800 training.device=cuda
+# YOLO26: python -m src.train -m experiment=b3,b6_yolo26 seed=0,1,2 ...
 ```
 
 ## Cost & time

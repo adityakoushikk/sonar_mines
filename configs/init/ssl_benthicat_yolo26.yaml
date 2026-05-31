@@ -1,0 +1,9 @@
+# B6 (YOLO26 variant): our YOLO26 backbone self-supervised (BYOL) pretrained on
+# BenthiCat SSS. Same loader as the yolov8n variant — only model_variant and the
+# checkpoint path differ. Pretrain it with `modal run ... --variant yolo26n`.
+
+name: "ssl_benthicat_yolo26"
+loader: "load_ssl_benthicat"
+model_variant: "yolo26n"
+weights_path: "pretraining/checkpoints/byol_benthicat_yolo26n.pt"
+num_classes: 2

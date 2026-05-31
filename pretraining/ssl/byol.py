@@ -30,9 +30,14 @@ from pretraining.ssl.backbone import extract_yolo_backbone, save_backbone_checkp
 from pretraining.ssl.data import build_webdataset_loader
 from pretraining.ssl.transforms import SonarBYOLTransform
 
-# Final checkpoint filename, written under ``cfg.out_dir`` (matches the path
-# baked into configs/init/ssl_benthicat.yaml's weights_path).
-_FINAL_CKPT_NAME = "byol_benthicat_backbone.pt"
+def _final_ckpt_name(variant: str) -> str:
+    """Variant-scoped final checkpoint filename, written under ``cfg.out_dir``.
+
+    Encoding the variant keeps a yolov8n and a yolo26n run from overwriting each
+    other's checkpoint. Matches the path baked into the per-variant init configs'
+    ``weights_path`` (e.g. ``byol_benthicat_yolov8n.pt``).
+    """
+    return f"byol_benthicat_{variant}.pt"
 
 
 @dataclass
@@ -167,7 +172,8 @@ def train_byol(
         method: Key into :data:`METHOD_REGISTRY` (only ``"byol"`` implemented).
 
     Returns:
-        Absolute path (as a string) to ``cfg.out_dir/byol_benthicat_backbone.pt``.
+        Absolute path (as a string) to the variant-scoped checkpoint under
+        ``cfg.out_dir`` (e.g. ``byol_benthicat_yolov8n.pt``).
     """
     if method not in METHOD_REGISTRY:
         raise ValueError(
@@ -224,7 +230,7 @@ def train_byol(
     model, optimizer, loader = accelerator.prepare(model, optimizer, loader)
 
     out_dir = Path(cfg.out_dir)
-    final_path = out_dir / _FINAL_CKPT_NAME
+    final_path = out_dir / _final_ckpt_name(cfg.variant)
 
     model.train()
     for epoch in range(cfg.epochs):

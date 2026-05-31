@@ -136,8 +136,8 @@ def test_b6_end_to_end_cpu(tmp_path: Path) -> None:
     )
     ckpt_path = train_byol(cfg)
 
-    # Checkpoint exists with the canonical name and full contract.
-    assert Path(ckpt_path).name == "byol_benthicat_backbone.pt"
+    # Checkpoint exists with the variant-scoped name and full contract.
+    assert Path(ckpt_path).name == "byol_benthicat_yolov8n.pt"
     assert Path(ckpt_path).exists()
     ckpt = torch.load(ckpt_path, map_location="cpu")
     assert set(ckpt) == _CONTRACT_KEYS
