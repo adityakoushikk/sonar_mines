@@ -1,8 +1,8 @@
 # @package _global_
-# B3: full COCO YOLOv8 checkpoint init.
+# B3: full COCO-pretrained YOLO26 checkpoint init.
 
 defaults:
-  - override /init: coco
-  - override /augmentation: none   # TODO: confirm aug setting for init-ablation suite
+  - override /init: yolo26_coco
+  - override /augmentation: all   # TODO: confirm aug setting for init-ablation suite
 
-tags: ["sonar", "yolov8", "exp:b3", "init:coco"]
+tags: ["sonar", "yolo26", "exp:b3", "init:yolo26_coco"]

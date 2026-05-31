@@ -1,8 +1,8 @@
 # @package _global_
-# B1: random init, baseline augmentation. Init-ablation lower bound.
+# B1: fully random YOLOv8 init with the all-augmentation condition.
 
 defaults:
   - override /init: random
-  - override /augmentation: none   # TODO: confirm aug setting for init-ablation suite
+  - override /augmentation: all
 
-tags: ["sonar", "yolov8", "exp:b1", "init:random"]
+tags: ["sonar", "yolov8", "exp:b1", "init:random", "aug:all"]

@@ -1,0 +1,7 @@
+# B3: full YOLO26 checkpoint pretrained on COCO.
+
+name: "yolo26_coco"
+loader: "load_coco_full"
+model_variant: "yolo26n"
+weights_path: "yolo26n.pt"
+num_classes: 2              # MILCO, NOMBO

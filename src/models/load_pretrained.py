@@ -6,10 +6,102 @@ assume any further reshaping has happened.
 """
 from __future__ import annotations
 
+from copy import deepcopy
 from pathlib import Path
 
 import torch
 from ultralytics import YOLO
+
+
+def _validate_num_classes(num_classes: int) -> None:
+    if num_classes < 1:
+        raise ValueError(f"num_classes must be >= 1, got {num_classes}")
+
+
+def _model_yaml_name(model_variant: str) -> str:
+    path = Path(model_variant)
+    if path.suffix in {".yaml", ".yml"}:
+        return str(path)
+    return f"{model_variant}.yaml"
+
+
+def _class_names(num_classes: int) -> dict[int, str]:
+    return {i: f"class_{i}" for i in range(num_classes)}
+
+
+def _apply_class_metadata(model: YOLO, num_classes: int) -> YOLO:
+    model.model.nc = num_classes
+    model.model.names = _class_names(num_classes)
+    if hasattr(model.model, "yaml"):
+        model.model.yaml["nc"] = num_classes
+    return model
+
+
+def _detection_model_from_yaml(yaml_cfg: dict, num_classes: int):
+    """Build an Ultralytics DetectionModel with a target class count."""
+    from ultralytics.nn.tasks import DetectionModel
+
+    cfg = deepcopy(yaml_cfg)
+    cfg["nc"] = num_classes
+    return DetectionModel(cfg, nc=num_classes, verbose=False)
+
+
+def _replace_with_target_nc_model(model: YOLO, num_classes: int) -> YOLO:
+    """Replace the wrapped module with the same architecture at target nc."""
+    old_model = model.model
+    target_model = _detection_model_from_yaml(old_model.yaml, num_classes)
+    target_model.args = getattr(old_model, "args", {})
+    target_model.task = getattr(old_model, "task", "detect")
+    model.model = target_model
+    model.task = "detect"
+    model.overrides["task"] = "detect"
+    return _apply_class_metadata(model, num_classes)
+
+
+def _randomize_detector(model: YOLO, num_classes: int) -> YOLO:
+    """Keep compatible non-detector tensors and replace Detect with random init."""
+    old_model = model.model
+    target_model = _detection_model_from_yaml(old_model.yaml, num_classes)
+    target_state = target_model.state_dict()
+    old_state = old_model.state_dict()
+    detector_prefix = f"model.{len(old_model.model) - 1}."
+
+    compatible_state = {
+        key: value
+        for key, value in old_state.items()
+        if (
+            key in target_state
+            and target_state[key].shape == value.shape
+            and not key.startswith(detector_prefix)
+        )
+    }
+    target_model.load_state_dict(compatible_state, strict=False)
+    target_model.args = getattr(old_model, "args", {})
+    target_model.task = getattr(old_model, "task", "detect")
+    model.model = target_model
+    model.task = "detect"
+    model.overrides["task"] = "detect"
+    return _apply_class_metadata(model, num_classes)
+
+
+def _load_compatible_non_detector_weights(target_model, source_model) -> None:
+    """Copy matching non-detector tensors from source_model into target_model."""
+    target_state = target_model.state_dict()
+    source_state = source_model.state_dict()
+    source_detector_prefix = f"model.{len(source_model.model) - 1}."
+    target_detector_prefix = f"model.{len(target_model.model) - 1}."
+
+    compatible_state = {
+        key: value
+        for key, value in source_state.items()
+        if (
+            key in target_state
+            and target_state[key].shape == value.shape
+            and not key.startswith(source_detector_prefix)
+            and not key.startswith(target_detector_prefix)
+        )
+    }
+    target_model.load_state_dict(compatible_state, strict=False)
 
 
 def load_random(model_variant: str, num_classes: int) -> YOLO:
@@ -19,22 +111,31 @@ def load_random(model_variant: str, num_classes: int) -> YOLO:
         model_variant: e.g. ``"yolov8n"``.
         num_classes: Number of detection classes for the new head.
     """
-    # TODO: build YOLO(f"{model_variant}.yaml") to get architecture-only init
-    # TODO: reset detection head for num_classes
-    raise NotImplementedError("TODO: implement load_random")
+    _validate_num_classes(num_classes)
+    model = YOLO(_model_yaml_name(model_variant))
+    return _replace_with_target_nc_model(model, num_classes)
 
 
-def load_imagenet_backbone(model_variant: str, num_classes: int) -> YOLO:
-    """B2: ImageNet-pretrained backbone, neck+head trained from scratch.
+def load_random_detector(weights_path: str | Path, num_classes: int) -> YOLO:
+    """Load pretrained weights except for a fresh random Detect head.
+
+    This preserves the checkpoint's backbone and neck tensors, then rebuilds
+    the detector for ``num_classes`` so box/classification detector weights are
+    randomly initialized.
 
     Args:
-        model_variant: e.g. ``"yolov8n"``.
+        weights_path: Path to a local ``.pt`` checkpoint or an Ultralytics
+            model name (e.g. ``"yolov8n.pt"``) that the library will fetch.
         num_classes: Number of detection classes for the new head.
     """
-    # TODO: build architecture-only YOLO, then load ImageNet backbone weights
-    # (torchvision Resnet/EfficientNet -> YOLO backbone layer mapping)
-    # TODO: reset detection head for num_classes
-    raise NotImplementedError("TODO: implement load_imagenet_backbone")
+    _validate_num_classes(num_classes)
+    model = YOLO(str(weights_path))
+    return _randomize_detector(model, num_classes)
+
+
+def load_random_head(weights_path: str | Path, num_classes: int) -> YOLO:
+    """Backward-compatible alias for detector-only randomization."""
+    return load_random_detector(weights_path=weights_path, num_classes=num_classes)
 
 
 def load_coco_full(weights_path: str | Path, num_classes: int) -> YOLO:
@@ -45,39 +146,40 @@ def load_coco_full(weights_path: str | Path, num_classes: int) -> YOLO:
             model name (e.g. ``"yolov8n.pt"``) that the library will fetch.
         num_classes: Number of detection classes for the new head.
     """
-    if num_classes < 1:
-        raise ValueError(f"num_classes must be >= 1, got {num_classes}")
+    _validate_num_classes(num_classes)
 
     model = YOLO(str(weights_path))
     # Ultralytics rebuilds the Detect head (keeping backbone+neck weights, new
     # randomly-initialised classification branch) when model.train(data=...)
     # sees a dataset whose class count differs from the checkpoint's. Recording
     # the target nc on the underlying nn.Module lets callers introspect it.
-    model.model.nc = num_classes
-    model.model.names = {i: f"class_{i}" for i in range(num_classes)}
-    return model
+    return _apply_class_metadata(model, num_classes)
 
 
-def load_sonar_fls(weights_path: str | Path, num_classes: int) -> YOLO:
-    """B4: Valdenegro-Toro forward-look-sonar pretrained YOLOv8.
+def load_coco_partial_arch(
+    model_variant: str,
+    weights_path: str | Path,
+    num_classes: int,
+) -> YOLO:
+    """Build an architecture YAML and copy compatible COCO checkpoint tensors.
 
-    Args:
-        weights_path: Path to the FLS-pretrained .pt checkpoint.
-        num_classes: Number of detection classes for the new head.
-    """
-    # TODO: YOLO(weights_path); reset head; sanity-check tensor shapes
-    raise NotImplementedError("TODO: implement load_sonar_fls")
-
-
-def load_sonar_uatd(weights_path: str | Path, num_classes: int) -> YOLO:
-    """B5: our UATD-pretrained YOLOv8 (matched modality).
+    This is useful for YOLO architecture variants that do not have released
+    pretrained weights, such as YOLO26 P2. The detector is intentionally left
+    randomly initialized because the target architecture/head differs from the
+    checkpoint.
 
     Args:
-        weights_path: Path to the UATD-pretrained .pt checkpoint.
+        model_variant: YAML architecture name, e.g. ``"yolo26n-p2"``.
+        weights_path: Pretrained checkpoint to partially transfer from, e.g.
+            ``"yolo26n.pt"``.
         num_classes: Number of detection classes for the new head.
     """
-    # TODO: YOLO(weights_path); reset head; sanity-check tensor shapes
-    raise NotImplementedError("TODO: implement load_sonar_uatd")
+    _validate_num_classes(num_classes)
+    target = YOLO(_model_yaml_name(model_variant))
+    source = YOLO(str(weights_path))
+    target = _replace_with_target_nc_model(target, num_classes)
+    _load_compatible_non_detector_weights(target.model, source.model)
+    return _apply_class_metadata(target, num_classes)
 
 
 def load_ssl_benthicat(
@@ -87,30 +189,32 @@ def load_ssl_benthicat(
 ) -> YOLO:
     """B6: our BYOL self-supervised backbone pretrained on BenthiCat SSS.
 
-    Builds the architecture-only YOLO, then loads just the SSL backbone weights
-    (layers ``model.0.*``..``model.9.*``) on top of the randomly-initialised
-    neck+head. The checkpoint follows the BYOL trainer's contract: a dict with a
-    ``backbone_state_dict`` whose keys are full-model names, so a non-strict
-    ``load_state_dict`` matches the backbone slice and leaves neck+head random.
+    Builds the architecture-only model, then loads just the SSL backbone weights
+    on top of the randomly-initialised neck+head. The checkpoint follows the
+    BYOL trainer's contract: a dict with a ``backbone_state_dict`` whose keys are
+    full-model names, so a non-strict ``load_state_dict`` matches the backbone
+    slice and leaves neck+head random. Architecture-agnostic — works for any
+    variant the backbone was pretrained on (e.g. ``"yolov8n"`` or ``"yolo26n"``).
 
     Args:
         weights_path: Path to the ``byol_benthicat_backbone.pt`` checkpoint.
         num_classes: Number of detection classes for the new head.
-        model_variant: e.g. ``"yolov8n"``; must match the pretrained variant.
+        model_variant: YAML architecture name, e.g. ``"yolov8n"`` or
+            ``"yolo26n"``; must match the variant the checkpoint was trained on.
     """
-    model = YOLO(f"{model_variant}.yaml")
+    _validate_num_classes(num_classes)
+    model = YOLO(_model_yaml_name(model_variant))
     ckpt = torch.load(weights_path, map_location="cpu")
     # strict=False: the checkpoint only carries backbone layers, so neck+head
     # keys are "missing" by design and stay at their architecture-only init.
-    missing, unexpected = model.model.load_state_dict(
+    _missing, unexpected = model.model.load_state_dict(
         ckpt["backbone_state_dict"], strict=False
     )
     # Every checkpointed key must map onto a real backbone parameter; an
     # unexpected key signals a variant/architecture mismatch, not a partial load.
-    assert not unexpected, f"unexpected keys when loading SSL backbone: {unexpected}"
+    if unexpected:
+        raise ValueError(f"unexpected keys when loading SSL backbone: {unexpected}")
 
-    # Record target nc/names on the nn.Module so callers can introspect them;
-    # Ultralytics rebuilds the Detect head for num_classes at train() time.
-    model.model.nc = num_classes
-    model.model.names = {i: f"class_{i}" for i in range(num_classes)}
-    return model
+    # Ultralytics rebuilds the Detect head for num_classes at train() time;
+    # recording nc/names here lets callers introspect the target class count.
+    return _apply_class_metadata(model, num_classes)

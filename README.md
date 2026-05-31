@@ -36,13 +36,14 @@ Configuration is managed by **Hydra** (run/multirun) and experiment tracking is 
 | A4 | acoustic shadow |
 | A5 | full sonar-physics stack (A2 + A3 + A4) |
 | A6 | generic CV + full sonar-physics stack |
+| A7 | generic CV + speckle + range falloff, no shadow |
 
 **Initialization ablation:**
 
 | ID | Init |
 | --- | --- |
 | B1 | random |
-| B2 | ImageNet backbone weights only |
+| B2 | COCO backbone/neck with random detector weights |
 | B3 | full YOLOv8 COCO checkpoint |
 | B4 | Valdenegro-Toro forward-look-sonar pretrained |
 | B5 | our UATD-pretrained checkpoint |
@@ -59,7 +60,7 @@ python -m src.train experiment=a3 seed=0
 Multirun sweep (all augmentation ablations, three seeds each):
 
 ```bash
-python -m src.train -m experiment=a0,a1,a2,a3,a4,a5,a6 seed=0,1,2
+python -m src.train -m experiment=a0,a1,a2,a3,a4,a5,a6,a7 seed=0,1,2
 ```
 
 ## Examples
@@ -92,10 +93,48 @@ python -m src.train -m experiment=a0 seed=0,1,2 \
 Full augmentation-ablation sweep — all A-series experiments, three seeds, both random and stratified-random splits:
 
 ```bash
-python -m src.train -m experiment=a0,a1,a2,a3,a4,a5,a6 data=santos,santos_stratified seed=0,1,2 training.epochs=100 training.batch=16 training.imgsz=800 training.device=cuda training.workers=8
+python -m src.train -m experiment=a0,a1,a2,a3,a4,a5,a6,a7 data=santos,santos_stratified seed=0,1,2 training.epochs=100 training.batch=16 training.imgsz=800 training.device=cuda training.workers=8
 ```
 
-Note on A0: Ultralytics 8.4's YOLO dataloader unconditionally bakes in four Albumentations transforms (`Blur`, `MedianBlur`, `ToGray`, `CLAHE` at `p=0.01` each) plus a few others at `p=0.0`. To keep A0 a true zero-augmentation baseline, `src/train.py` monkey-patches `ultralytics.data.augment.Albumentations.__init__` to leave `self.transform = None` whenever `cfg.augmentation.name == "none"`, which short-circuits the class's `__call__`. No batches get the Ultralytics defaults under A0. Verified against `ultralytics==8.4.50` — if you bump versions, re-check that the class API hasn't drifted.
+### Conservative Augmentation Sweep
+
+For configs that do not use generic CV (`A0`, `A2`, `A3`, `A4`, `A5`), the conservative physics defaults already live in the YAML files. This sweep uses only the stratified split:
+
+```bash
+python -m src.train -m experiment=a0,a2,a3,a4,a5 data=santos_stratified seed=0,1,2 training.epochs=100 training.batch=16 training.imgsz=800 training.device=cuda training.workers=5 logging.wandb.project="sonar conservative aug"
+```
+
+For configs that use generic CV (`A1`, `A6`, `A7`), this keeps flips enabled but reduces the stronger geometry/mosaic settings, also using only the stratified split:
+
+```bash
+python -m src.train -m experiment=a1,a6,a7 data=santos_stratified seed=0,1,2 augmentation.train_args.mosaic=0.5 augmentation.train_args.translate=0.05 augmentation.train_args.scale=0.1 training.epochs=100 training.batch=16 training.imgsz=800 training.device=cuda training.workers=5 logging.wandb.project="sonar conservative aug"
+```
+
+### Generic CV Strength Sweep
+
+Focused sweep on the `A6` all-augmentation condition over mosaic probability, the generic CV knob most likely to affect tiny sonar targets. This is `9` runs (`3 seeds * 3 mosaic values`) and keeps the other generic CV and sonar-physics augmentations fixed.
+
+```bash
+python -m src.train -m experiment=a6 data=santos_stratified seed=0,1,2 augmentation.train_args.mosaic=0.25,0.5,1.0 training.epochs=600 training.batch=16 training.imgsz=800 training.device=cuda training.workers=5 logging.wandb.project="sonar generic cv sweep"
+```
+
+### Training-Hyperparameter Sweep
+
+Focused training sweep on the `A6` all-augmentation condition (`generic CV + speckle + range falloff + shadow`) over optimizer, learning rate, and cosine LR scheduling. This is `36` runs (`3 seeds * 2 optimizers * 3 LRs * 2 cos_lr settings`) and keeps regularization fixed at the current defaults.
+
+```bash
+python -m src.train -m experiment=a6 data=santos_stratified seed=0,1,2 training.optimizer=MuSGD,AdamW training.lr0=0.0001,0.0005,0.001 training.cos_lr=true,false training.epochs=600 training.batch=16 training.imgsz=800 training.device=cuda training.workers=5 logging.wandb.project="sonar training sweep real"
+```
+
+### Random vs Init Weights
+
+This compares initialization/model variants under the strongest augmentation condition: `A6` uses the YOLOv8 COCO baseline, `B1` uses random weights everywhere, `B2` uses COCO backbone/neck weights with a random detector, `B3` uses YOLO26 COCO weights, and `B4` uses YOLO26 P2 with compatible COCO weights.
+
+The run keeps the training setup aligned with the sweep above (`epochs=1000`, `batch=16`, `imgsz=800`, `device=cuda`) and uses 5 dataloader workers.
+
+```bash
+python -m src.train -m experiment=a6,b1,b2,b3,b4 data=santos_stratified seed=0,1,2 training.epochs=1000 training.batch=16 training.imgsz=800 training.device=cuda training.workers=5 logging.wandb.project="sonar random vs init weights"
+```
 
 ## Install
 

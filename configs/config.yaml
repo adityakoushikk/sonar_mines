@@ -3,7 +3,7 @@
 # Composes data / init / augmentation / experiment / training / logging groups.
 # Override any group from the command line, e.g.:
 #   python -m src.train experiment=a3
-#   python -m src.train -m experiment=a0,a1,a2,a3,a4,a5,a6 seed=0,1,2
+#   python -m src.train -m experiment=a0,a1,a2,a3,a4,a5,a6,a7 seed=0,1,2
 
 defaults:
   - _self_

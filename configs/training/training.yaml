@@ -3,17 +3,22 @@
 # Reference: https://docs.ultralytics.com/usage/cfg/
 
 # Core training schedule
-epochs: 50               # adjust based on convergence behavior; ~50 is a reasonable starting point
+epochs: 600              # adjust based on convergence behavior; ~50 is a reasonable starting point
 batch: 16                # 16 fits most GPUs at imgsz 640; use -1 for auto-sizing
 imgsz: 800               # larger than default 640 because mine objects are very small
 device: cuda             # "cuda" | "cpu" | 0 | [0,1]
-workers: 8
-
-# Optimization — let Ultralytics pick
-optimizer: auto          # selects AdamW for small datasets
-
+workers: 5
+optimizer: auto
+lr0: 0.01
+lrf: 0.01
+momentum: 0.937
+weight_decay: 0.0005
+warmup_epochs: 3
+warmup_momentum: 0.8
+cos_lr: false
+freeze: null
 # Early stopping — important for small dataset to prevent overfitting
-patience: 20
+patience: 50
 
 # Reproducibility
 deterministic: true

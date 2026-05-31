@@ -1,0 +1,8 @@
+# @package _global_
+# A7: COCO init + generic CV plus speckle and range-falloff, no acoustic shadow.
+
+defaults:
+  - override /init: coco
+  - override /augmentation: all_no_shadow
+
+tags: ["sonar", "yolov8", "exp:a7", "init:coco", "aug:all_no_shadow"]

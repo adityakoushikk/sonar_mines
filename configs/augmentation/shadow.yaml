@@ -3,11 +3,31 @@
 # Implemented as a DualTransform since shadow geometry can affect bounding boxes.
 
 name: "shadow"
+train_args:
+  # Disable native Ultralytics augmentations; isolate acoustic shadow only.
+  hsv_h: 0.0
+  hsv_s: 0.0
+  hsv_v: 0.0
+  bgr: 0.0
+  degrees: 0.0
+  translate: 0.0
+  scale: 0.0
+  shear: 0.0
+  perspective: 0.0
+  fliplr: 0.0
+  flipud: 0.0
+  mosaic: 0.0
+  close_mosaic: 0
+  mixup: 0.0
+  cutmix: 0.0
+  copy_paste: 0.0
+  erasing: 0.0
+  auto_augment: null
 pipeline:
   - _target_: src.augmentations.shadow.AcousticShadow
     nadir_axis: "x"
-    shadow_length_range: [0.05, 0.20]
-    shadow_intensity: 0.1
+    shadow_length_range: [0.02, 0.08]
+    shadow_intensity: 0.4
     nadir_position: 0.5
     always_apply: false
-    p: 0.5
+    p: 0.15
