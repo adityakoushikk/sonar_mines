@@ -8,12 +8,14 @@ Reference: https://docs.ultralytics.com/datasets/detect
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Sequence
 
 import yaml
 
 _SUPPORTED_IMAGE_EXTS = (".jpg", ".jpeg", ".png")
+_YEAR_RE = re.compile(r"(?:^|_)((?:19|20)\d{2})(?:_|$)")
 
 
 def _compute_stratum(label_path: Path, class_names: Sequence[str]) -> str:
@@ -33,6 +35,22 @@ def _compute_stratum(label_path: Path, class_names: Sequence[str]) -> str:
     if len(classes_present) == 1:
         return f"{class_names[next(iter(classes_present))].lower()}_only"
     return "+".join(sorted(class_names[c].lower() for c in classes_present))
+
+
+def _parse_year(path: Path) -> int:
+    """Parse a collection year from common sonar filename conventions."""
+    suffix = path.stem.rsplit("_", 1)[-1]
+    if suffix.isdigit() and len(suffix) == 4:
+        return int(suffix)
+
+    match = _YEAR_RE.search(path.stem)
+    if match is not None:
+        return int(match.group(1))
+
+    raise ValueError(
+        f"could not parse collection year from {path.name!r}; expected a "
+        "four-digit year as a suffix or underscore-delimited token"
+    )
 
 
 class SantosDataset:
@@ -85,10 +103,10 @@ class SantosDataset:
                 f"images with no annotated objects."
             )
 
-        # Year parsed from the "<stem>_<YYYY>.<ext>" filename convention so
-        # cross_year_split can bucket items without consulting an external map.
+        # Year parsed from common filename conventions so cross_year_split can
+        # bucket items without consulting an external map.
         self.years: list[int] = [
-            int(p.stem.rsplit("_", 1)[-1]) for p in self.image_paths
+            _parse_year(p) for p in self.image_paths
         ]
 
         # Per-image stratum (class-presence bucket) consumed by stratified

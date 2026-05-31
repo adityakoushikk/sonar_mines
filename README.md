@@ -135,6 +135,20 @@ The run keeps the training setup aligned with the sweep above (`epochs=1000`, `b
 python -m src.train -m experiment=a6,b1,b2,b3,b4 data=santos_stratified seed=0,1,2 training.epochs=1000 training.batch=16 training.imgsz=800 training.device=cuda training.workers=5 logging.wandb.project="sonar random vs init weights"
 ```
 
+B4 epoch check — same setup as above, but only the YOLO26 P2 condition and both 600/1000 epoch ceilings:
+
+```bash
+python -m src.train -m experiment=b4 data=santos_stratified seed=0,1,2 training.epochs=600,1000 training.batch=16 training.imgsz=800 training.device=cuda training.workers=5 logging.wandb.project="sonar random vs init weights"
+```
+
+### Cylinder Dataset Pretraining
+
+Train on the cylinder/manta side-scan sonar dataset with the all-augmentation condition, comparing standard COCO init against COCO backbone/neck with a random detector.
+
+```bash
+python -m src.train -m experiment=cylinder,cylinderRandDetector seed=0,1,2 training.epochs=600 training.batch=16 training.imgsz=800 training.device=cuda training.workers=5 logging.wandb.project="sonar cylinder pretrain"
+```
+
 ## Install
 
 Requires Python ≥ 3.10.

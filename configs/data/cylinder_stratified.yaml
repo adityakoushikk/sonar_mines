@@ -1,0 +1,19 @@
+# Stratified random split of the cylinder/manta side-scan sonar dataset.
+# Class names mirror the source Roboflow YOLOv8 data.yaml.
+
+name: "cylinder_stratified"
+root: "${oc.env:PROJECT_ROOT,.}/data/cylinder"
+images_dir: "images"
+labels_dir: "labels"
+class_names:
+  - "cylider"
+  - "manta"
+
+split:
+  kind: "stratified_random"
+  train_frac: 0.7
+  val_frac: 0.15
+  test_frac: 0.15
+  seed: ${seed}
+
+subsample_n: null

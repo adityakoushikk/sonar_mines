@@ -38,6 +38,8 @@ checkpoints/
 # Datasets (populated by user, not tracked)
 data/santos/images/
 data/santos/labels/
+data/cylinder/images/
+data/cylinder/labels/
 data/uatd/images/
 data/uatd/labels/
 data/**/*.cache             # ultralytics scan caches

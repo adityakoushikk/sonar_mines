@@ -18,7 +18,7 @@ train_args:
   flipud: 0.5
 
   # Mosaic: enabled, then disabled near the end of training.
-  mosaic: 1.0
+  mosaic: 0.25
   close_mosaic: 15
 
   # Disabled.

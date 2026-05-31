@@ -1,0 +1,9 @@
+# @package _global_
+# Cylinder/manta dataset with COCO backbone/neck and random detector weights.
+
+defaults:
+  - override /data: cylinder_stratified
+  - override /init: random_detector
+  - override /augmentation: all
+
+tags: ["sonar", "yolov8", "exp:cylinderRandDetector", "data:cylinder", "init:random_detector", "aug:all"]

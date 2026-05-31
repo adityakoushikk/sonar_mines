@@ -1,0 +1,9 @@
+# @package _global_
+# Cylinder/manta dataset with standard COCO-pretrained YOLOv8 init.
+
+defaults:
+  - override /data: cylinder_stratified
+  - override /init: coco
+  - override /augmentation: all
+
+tags: ["sonar", "yolov8", "exp:cylinder", "data:cylinder", "init:coco", "aug:all"]
