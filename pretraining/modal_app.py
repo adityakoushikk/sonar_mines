@@ -15,6 +15,8 @@ import modal
 # add_local_*, so all package layers go on `_base` and `_add_local()` is last.
 _base = (
     modal.Image.debian_slim()
+    # ultralytics imports cv2, which needs libGL.so.1 + libgthread — absent in slim.
+    .apt_install("libgl1", "libglib2.0-0")
     .pip_install_from_requirements("pretraining/requirements.txt")
     # /root on sys.path so the mounted src/ and pretraining/ dirs are importable.
     .env({"PYTHONPATH": "/root"})
