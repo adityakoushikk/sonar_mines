@@ -26,28 +26,47 @@ import modal
 # Build from the *isolated* SSL requirements (lightly/webdataset/accelerate/
 # modal live here, separate from the repo-root requirements.txt) so the GPU
 # image matches what the trainer imports.
-image = (
+#
+# IMPORTANT build ordering: Modal forbids any build step (apt_install/pip/
+# run_commands) *after* `add_local_*`. So all package/apt layers go on `_base`
+# first, and `_add_local()` (which mounts the source dirs) is always the LAST
+# step. The preprocess image adds its apt layer to `_base` *before* that mount.
+_base = (
     modal.Image.debian_slim()
     .pip_install_from_requirements("pretraining/requirements.txt")
-    # Put /root on sys.path so the src/ and pretraining/ dirs copied below are
+    # Put /root on sys.path so the src/ and pretraining/ dirs mounted below are
     # importable: add_local_dir copies the files but does not itself extend the
     # import path, and the remote trainer does `import src` / `import pretraining`.
     .env({"PYTHONPATH": "/root"})
-    # GOTCHA: code imported by the remote function is NOT auto-shipped unless it
-    # lives next to this file. The trainer does `from src.augmentations import
-    # ...` and `from pretraining.ssl import ...`, so both top-level package dirs
-    # must be present on the container's import path. We mount them under /root
-    # (the container CWD, which is on sys.path) so `import src` / `import
-    # pretraining` resolve exactly as they do locally from the repo root.
-    #
-    # add_local_dir copies a directory tree into the image at build/deploy time.
-    # (On modal >= 0.63 the modern equivalent for pure-Python packages is
-    # `image.add_local_python_source("src", "pretraining")`; we use add_local_dir
-    # so non-.py assets like the YOLO yaml shipped with ultralytics' install are
-    # unaffected and the mount is explicit.)
-    .add_local_dir("src", remote_path="/root/src")
-    .add_local_dir("pretraining", remote_path="/root/pretraining")
 )
+
+
+def _add_local(img: "modal.Image") -> "modal.Image":
+    """Mount src/ and pretraining/ onto the container import path.
+
+    MUST be the final build step on any image (Modal disallows build steps after
+    add_local_*; that constraint is exactly what this helper centralizes).
+
+    GOTCHA: code imported by the remote function is NOT auto-shipped unless it
+    lives next to this file. The trainer does `from src.augmentations import ...`
+    and `from pretraining.ssl import ...`, so both top-level package dirs must be
+    on the container's import path. We mount them under /root (the container CWD,
+    which is on sys.path) so the imports resolve exactly as they do locally from
+    the repo root. add_local_dir (vs add_local_python_source) keeps non-.py
+    assets — e.g. the YOLO yaml shipped with ultralytics — explicit.
+    """
+    return (
+        img
+        .add_local_dir("src", remote_path="/root/src")
+        .add_local_dir("pretraining", remote_path="/root/pretraining")
+    )
+
+
+# Default training image: base deps + local source.
+image = _add_local(_base)
+# Preprocess image: base deps + 7-Zip (apt layer BEFORE the local mount), then
+# local source. p7zip-full provides the `7za` extractor for the .7z archives.
+preprocess_image = _add_local(_base.apt_install("p7zip-full"))
 
 app = modal.App("sonar-ssl", image=image)
 
@@ -171,18 +190,109 @@ def inspect_volume() -> list[str]:
 
 
 @app.function(
-    # Only this function needs 7-Zip, so give it its own image — the training
-    # image (above) stays unchanged. p7zip-full provides the `7za` extractor.
-    image=image.apt_install("p7zip-full"),
+    # Network-bound, not compute-bound: just streams files from Dataverse to the
+    # Volume. The training image already has urllib (stdlib); no 7-Zip needed here.
+    volumes={_DATA_DIR: vol},
+    timeout=6 * 60 * 60,
+)
+def download_to_volume() -> dict:
+    """Download every BenthiCat archive from Harvard Dataverse straight to the
+    Volume's ``/raw`` — no large download ever touches your local machine.
+
+    The dataset (DOI ``10.7910/DVN/2VCN7Y``, CC BY-NC-SA 4.0) is public with no
+    access request, so the Dataverse access API serves each file directly (via a
+    303 redirect to pre-signed S3 that urllib follows). We list the dataset's
+    files, then stream each one to ``/data/raw`` and commit per file, so a re-run
+    resumes — already-complete files (size matches the manifest) are skipped.
+
+    Run::
+
+        modal run pretraining/modal_app.py::download_to_volume
+
+    Then pack shards with ``preprocess_volume`` (it handles the multi-volume
+    ``.7z.001``/``.002``/... splits these archives ship as).
+    """
+    import json
+    import os
+    import shutil
+    import urllib.request
+
+    _DOI = "doi:10.7910/DVN/2VCN7Y"
+    _BASE = "https://dataverse.harvard.edu"
+    list_url = (
+        f"{_BASE}/api/datasets/:persistentId/versions/:latest/files"
+        f"?persistentId={_DOI}"
+    )
+
+    def _req(url: str) -> "urllib.request.Request":
+        # A descriptive User-Agent avoids occasional bot filtering; urllib follows
+        # the 303 redirect from the access endpoint to S3 automatically.
+        return urllib.request.Request(url, headers={"User-Agent": "sonar-ssl/1.0"})
+
+    vol.reload()
+    raw_dir = f"{_DATA_DIR}/raw"
+    os.makedirs(raw_dir, exist_ok=True)
+
+    with urllib.request.urlopen(_req(list_url)) as resp:
+        listing = json.load(resp)["data"]
+
+    n_downloaded = 0
+    total_bytes = 0
+    for entry in listing:
+        df = entry["dataFile"]
+        fid = df["id"]
+        name = df["filename"]
+        expected = int(df.get("filesize", 0))
+        dest = f"{raw_dir}/{name}"
+
+        # Resume: a file already fully present (size matches the manifest) is skipped.
+        if os.path.exists(dest) and expected and os.path.getsize(dest) == expected:
+            print(f"[download] skip {name} (already {expected} bytes)")
+            total_bytes += expected
+            continue
+
+        url = f"{_BASE}/api/access/datafile/{fid}"
+        print(f"[download] {name} ({expected / 1e9:.2f} GB) <- datafile/{fid}")
+        # Stream to a .part file, then atomically rename — so an interrupted
+        # download never looks complete to the resume check above.
+        part = f"{dest}.part"
+        with urllib.request.urlopen(_req(url)) as r, open(part, "wb") as f:
+            shutil.copyfileobj(r, f, length=1024 * 1024)
+        os.replace(part, dest)
+        n_downloaded += 1
+        total_bytes += os.path.getsize(dest)
+        vol.commit()  # persist each archive as it lands (crash-safe / resumable)
+
+    vol.commit()
+    print(
+        f"[download] DONE: {len(listing)} files on Volume "
+        f"({total_bytes / 1e9:.1f} GB total)"
+    )
+    return {
+        "n_files": len(listing),
+        "n_downloaded": n_downloaded,
+        "total_bytes": total_bytes,
+    }
+
+
+@app.function(
+    # Only this function needs 7-Zip, so it uses the dedicated preprocess_image
+    # (base deps + p7zip-full, built BEFORE the local mount); the training image
+    # stays unchanged.
+    image=preprocess_image,
     volumes={_DATA_DIR: vol},
     cpu=4.0,
     timeout=12 * 60 * 60,
 )
 def preprocess_volume() -> dict:
-    """Extract uploaded BenthiCat .7z archives and pack them into WebDataset
-    shards entirely on the Volume — no large local disk, no shard upload.
+    """Extract BenthiCat .7z archives and pack them into WebDataset shards
+    entirely on the Volume — no large local disk, no shard upload.
 
-    Prereq: upload the archives to /data/raw first::
+    Prereq: get the archives onto /data/raw first, either directly from Dataverse::
+
+        modal run pretraining/modal_app.py::download_to_volume
+
+    or from a local copy::
 
         modal volume put sonar-ssl-data <local-dir-of-.7z> /raw
 
@@ -190,8 +300,12 @@ def preprocess_volume() -> dict:
 
         modal run pretraining/modal_app.py::preprocess_volume
 
-    Processes one archive at a time (extract -> pack -> delete -> commit) so the
-    transient .npy on the Volume stays ~one sector, not the full ~560 GB.
+    These archives ship as MULTI-VOLUME 7-Zip splits (``N04.7z.001``,
+    ``N04.7z.002``, ...). ``7za`` reassembles a whole set when pointed at its
+    ``.001`` volume (it auto-joins the rest from the same dir), so we iterate over
+    first volumes only. Processes one sector at a time (extract -> pack -> delete
+    -> commit) so transient .npy on the Volume stays ~one sector, not the full
+    ~560 GB.
     """
     import glob
     import os
@@ -204,16 +318,24 @@ def preprocess_volume() -> dict:
     raw_dir = f"{_DATA_DIR}/raw"
     os.makedirs(_SHARDS_DIR, exist_ok=True)
 
-    archives = sorted(glob.glob(f"{raw_dir}/*.7z"))
+    # First volumes of each set (".7z.001") plus any plain single-file ".7z".
+    # glob "*.7z" excludes split parts, whose names end in ".001"/".002"/... — so
+    # the two globs don't overlap.
+    archives = sorted(
+        glob.glob(f"{raw_dir}/*.7z.001") + glob.glob(f"{raw_dir}/*.7z")
+    )
     if not archives:
         raise FileNotFoundError(
-            f"no .7z archives under {raw_dir}; upload them with "
-            "`modal volume put sonar-ssl-data <dir> /raw` first"
+            f"no .7z / .7z.001 archives under {raw_dir}; get them onto the Volume "
+            "with `modal run pretraining/modal_app.py::download_to_volume` "
+            "(or `modal volume put sonar-ssl-data <dir> /raw`) first"
         )
 
     total = 0
     for arc in archives:
-        sector = os.path.splitext(os.path.basename(arc))[0]
+        # Sector = everything before ".7z": "N04.7z.001" -> "N04", "S02.7z" ->
+        # "S02". (splitext would wrongly yield "N04.7z" for a split's .001 part.)
+        sector = os.path.basename(arc).split(".7z")[0]
         tmp = f"{_DATA_DIR}/_extract/{sector}"
         os.makedirs(tmp, exist_ok=True)
         # p7zip-full's `7za` extracts .7z. -o<dir> takes no space; -y = assume yes.

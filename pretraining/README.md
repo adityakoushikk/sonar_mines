@@ -41,9 +41,10 @@ pytest pretraining/
 
 ## Full workflow
 
-Steps 1–2 are local; everything else runs on Modal. The recommended path keeps
-preprocessing **on Modal**, so your machine only holds the ~60 GB of compressed
-archives — the extracted `.npy` is ~560 GB, so don't extract it locally.
+The recommended path runs **entirely on Modal** — download, extract, and
+preprocessing all happen server-side, so nothing large ever touches your machine
+(the extracted `.npy` is ~560 GB, so don't extract it locally). Your laptop just
+issues `modal run` commands.
 
 ### 0. One-time setup
 
@@ -52,20 +53,29 @@ modal token new                                # Modal auth
 modal secret create wandb WANDB_API_KEY=<key>  # W&B key for run logging
 ```
 
-### 1. Download BenthiCat (~60 GB)
+### 1. Get the archives onto the Volume (~59 GB)
 
 "BenthiCat – SSS Pre-training", Harvard Dataverse DOI
-[`10.7910/DVN/2VCN7Y`](https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/2VCN7Y).
-Download the per-sector `.7z` archives (N01–N16, S01–S03) into a local folder,
-e.g. `~/benthicat_7z/`.
+[`10.7910/DVN/2VCN7Y`](https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/2VCN7Y)
+— public (CC BY-NC-SA 4.0), 16 sectors (N01–N10, N12, N15, N16, S01–S03) shipped
+as **multi-volume 7-Zip splits** (`N04.7z.001`, `N04.7z.002`, …; 32 files total).
 
-### 2. Upload the archives to the Volume
+**Recommended — pull straight from Dataverse to the Volume (nothing local):**
+
+```bash
+modal run pretraining/modal_app.py::download_to_volume
+```
+
+Streams every file to `/data/raw` and commits per file, so a re-run resumes.
+
+**Alternative — download locally, then upload:** grab the `.7z.*` files into a
+folder (e.g. `~/benthicat_7z/`) and push them:
 
 ```bash
 modal volume put sonar-ssl-data ~/benthicat_7z /raw
 ```
 
-### 3. Preprocess on Modal (extract + pack, server-side)
+### 2. Preprocess on Modal (extract + pack, server-side)
 
 ```bash
 modal run pretraining/modal_app.py::preprocess_volume
@@ -83,7 +93,7 @@ Shards land at `/data/shards/benthicat-*.tar`.
 > modal volume put sonar-ssl-data data/benthicat_shards /shards
 > ```
 
-### 4. Train
+### 3. Train
 
 A cheap calibration pass first (measures real throughput for ~$1), then the full
 run. Loss logs to the `sonar-ssl` W&B project.
@@ -93,7 +103,7 @@ modal run pretraining/modal_app.py --epochs 1 --epoch-length 5000 --batch-size 6
 modal run pretraining/modal_app.py --epochs 100                                      # full run
 ```
 
-### 5. Pull the checkpoint
+### 4. Pull the checkpoint
 
 ```bash
 modal volume get sonar-ssl-data /checkpoints/byol_benthicat_backbone.pt \
@@ -102,7 +112,7 @@ modal volume get sonar-ssl-data /checkpoints/byol_benthicat_backbone.pt \
 
 This is the path baked into `configs/init/ssl_benthicat.yaml`.
 
-### 6. Fine-tune B6 on Santos (vs. the COCO baseline)
+### 5. Fine-tune B6 on Santos (vs. the COCO baseline)
 
 ```bash
 python -m src.train -m experiment=b3,b6 seed=0,1,2 \
