@@ -1,22 +1,9 @@
-"""Empirical gate for the YOLO backbone layer cut + checkpoint round-trip.
+"""Contract gate: backbone weights trained in pretraining/ reload intact via the
+src/ seam. Asserts (a) byte-for-byte round-trip, (b) a fresh strict=False load
+has no unexpected keys and only neck/head (index >= cut) missing, (c) nc is set.
 
-This is the load-bearing contract test between the SSL trainer and the
-supervised loader: it proves that weights *trained* in ``pretraining/`` arrive
-*intact* in a fresh detector built by ``src/``. We simulate training by nudging
-every backbone parameter, serialize via the shared checkpoint contract, reload
-through the real :func:`load_ssl_benthicat` seam, and then assert three things:
-
-  (a) every saved backbone tensor reappears byte-for-byte in the reloaded model
-      (the cut + key naming actually round-trips, not just "loads without error");
-  (b) a strict=False load on a *fresh* model has no unexpected keys and every
-      *missing* key is a neck/head layer (index >= the variant's inferred cut) —
-      i.e. the cut keeps exactly the backbone and nothing leaks the other way;
-  (c) the reloaded detector records the requested class count.
-
-Parametrized over ``yolov8n`` and ``yolo26n`` so the v8/v26 option is both
-covered by the gate. The yaml builds with no network (hermetic); a variant whose
-yaml is absent in the installed ultralytics is *skipped*, but a variant that
-builds yet fails to extract/round-trip is a real failure (not hidden).
+Parametrized over yolov8n/yolo26n. A variant whose yaml is absent is skipped; one
+that builds but fails to round-trip is a real failure (not hidden).
 """
 from __future__ import annotations
 
@@ -86,7 +73,9 @@ def test_backbone_checkpoint_roundtrips_through_load_seam(
     assert saved, "expected a non-empty backbone state dict"
 
     ckpt_path = tmp_path / "checkpoints" / "byol_benthicat_backbone.pt"
-    save_backbone_checkpoint(yolo, ckpt_path, channels=channels, epoch=3, variant=variant)
+    save_backbone_checkpoint(
+        yolo, ckpt_path, channels=channels, epoch=3, variant=variant
+    )
 
     # The real downstream seam: build a fresh detector and load the SSL backbone.
     model = load_ssl_benthicat(ckpt_path, num_classes=2, model_variant=variant)

@@ -6,4 +6,4 @@ name: "ssl_benthicat"
 loader: "load_ssl_benthicat"
 model_variant: "yolov8n"
 weights_path: "pretraining/checkpoints/byol_benthicat_yolov8n.pt"
-num_classes: 2
+num_classes: 2              # MILCO, NOMBO

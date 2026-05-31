@@ -1,8 +1,4 @@
-"""Smoke test for the WebDataset BYOL loader.
-
-Builds a tiny real shard on disk with ``preprocess`` and iterates one batch with
-``num_workers=0`` (the contract the smoke test must satisfy).
-"""
+"""Smoke test for the WebDataset BYOL loader (tiny real shard, num_workers=0)."""
 from __future__ import annotations
 
 from pathlib import Path

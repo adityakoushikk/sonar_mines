@@ -187,34 +187,22 @@ def load_ssl_benthicat(
     num_classes: int,
     model_variant: str = "yolov8n",
 ) -> YOLO:
-    """B6: our BYOL self-supervised backbone pretrained on BenthiCat SSS.
+    """B6: BYOL self-supervised backbone (BenthiCat SSS) loaded into a fresh detector.
 
-    Builds the architecture-only model, then loads just the SSL backbone weights
-    on top of the randomly-initialised neck+head. The checkpoint follows the
-    BYOL trainer's contract: a dict with a ``backbone_state_dict`` whose keys are
-    full-model names, so a non-strict ``load_state_dict`` matches the backbone
-    slice and leaves neck+head random. Architecture-agnostic — works for any
-    variant the backbone was pretrained on (e.g. ``"yolov8n"`` or ``"yolo26n"``).
+    Loads only the backbone slice (strict=False leaves neck+head random);
+    architecture-agnostic, so ``model_variant`` may be ``"yolov8n"`` or ``"yolo26n"``.
 
     Args:
-        weights_path: Path to the ``byol_benthicat_backbone.pt`` checkpoint.
+        weights_path: Path to the ``byol_benthicat_<variant>.pt`` checkpoint.
         num_classes: Number of detection classes for the new head.
-        model_variant: YAML architecture name, e.g. ``"yolov8n"`` or
-            ``"yolo26n"``; must match the variant the checkpoint was trained on.
+        model_variant: YAML architecture name; must match the checkpoint's variant.
     """
     _validate_num_classes(num_classes)
     model = YOLO(_model_yaml_name(model_variant))
     ckpt = torch.load(weights_path, map_location="cpu")
-    # strict=False: the checkpoint only carries backbone layers, so neck+head
-    # keys are "missing" by design and stay at their architecture-only init.
     _missing, unexpected = model.model.load_state_dict(
         ckpt["backbone_state_dict"], strict=False
     )
-    # Every checkpointed key must map onto a real backbone parameter; an
-    # unexpected key signals a variant/architecture mismatch, not a partial load.
-    if unexpected:
+    if unexpected:  # unexpected key => variant/architecture mismatch, not partial load
         raise ValueError(f"unexpected keys when loading SSL backbone: {unexpected}")
-
-    # Ultralytics rebuilds the Detect head for num_classes at train() time;
-    # recording nc/names here lets callers introspect the target class count.
     return _apply_class_metadata(model, num_classes)

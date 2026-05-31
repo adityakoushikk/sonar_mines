@@ -1,10 +1,4 @@
-"""End-to-end CPU smoke test for BYOL training + the downstream load seam.
-
-Trains for a couple of epochs on a tiny shard with a single CPU process
-(accelerate degrades to no-mixed-precision), then verifies the emitted
-checkpoint loads back onto a fresh detector via the real supervised loader.
-This is the contract that ties the SSL half to ``src/``.
-"""
+"""CPU smoke test for BYOL training + the downstream load seam."""
 from __future__ import annotations
 
 from pathlib import Path

@@ -1,8 +1,4 @@
-"""Tests for the BYOL two-view transform.
-
-Requires albumentations + torch. Verifies shapes, channel replication, and that
-the two views are produced by *independent* random draws.
-"""
+"""Tests for the BYOL two-view transform (shapes, channel replication, independence)."""
 from __future__ import annotations
 
 import numpy as np

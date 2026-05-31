@@ -1,9 +1,4 @@
-"""Tests for the BenthiCat -> WebDataset shard preprocessing step.
-
-These exercise the lossless uint8/PNG conversion contract and the shard
-manifest. They depend only on numpy + PIL + webdataset (no torch), so they run
-even in a minimal environment.
-"""
+"""Tests for the BenthiCat -> WebDataset preprocessing (lossless PNG + manifest)."""
 from __future__ import annotations
 
 import io

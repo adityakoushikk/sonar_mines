@@ -4,6 +4,6 @@
 
 defaults:
   - override /init: ssl_benthicat_yolo26
-  - override /augmentation: none   # TODO: confirm aug setting for init-ablation suite
+  - override /augmentation: all   # TODO: confirm aug setting for init-ablation suite
 
-tags: ["sonar", "yolo26", "exp:b6", "init:ssl_benthicat"]
+tags: ["sonar", "yolo26", "exp:b6", "init:ssl_benthicat_yolo26"]

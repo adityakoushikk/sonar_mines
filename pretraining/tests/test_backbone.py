@@ -1,8 +1,4 @@
-"""Tests for YOLO backbone extraction and the checkpoint contract.
-
-Requires torch + ultralytics. ``YOLO(f"{variant}.yaml")`` builds from a bundled
-yaml (no network), so these are hermetic.
-"""
+"""Tests for YOLO backbone extraction and the checkpoint contract (hermetic)."""
 from __future__ import annotations
 
 from pathlib import Path
