@@ -54,7 +54,9 @@ _OUT_DIR = f"{_DATA_DIR}/checkpoints"
     # throughput scales ~linearly with them. Keep num_workers <= cpu and <= the
     # shard count (~80-100) so no worker starves.
     cpu=32.0,
-    timeout=12 * 60 * 60,  # default is 300s; a 100-epoch single-A100 run is ~10h
+    # 24h is Modal's max; at ~717 samples/s (~22 min per full pass) that fits
+    # ~60 epochs. Default is 300s, so this must be set explicitly.
+    timeout=24 * 60 * 60,
     volumes={_DATA_DIR: vol},
     secrets=[modal.Secret.from_name("wandb")],  # WANDB_API_KEY from the "wandb" secret
 )
