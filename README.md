@@ -47,6 +47,7 @@ Configuration is managed by **Hydra** (run/multirun) and experiment tracking is 
 | B3 | full YOLOv8 COCO checkpoint |
 | B4 | Valdenegro-Toro forward-look-sonar pretrained |
 | B5 | our UATD-pretrained checkpoint |
+| B6 | self-supervised BYOL pretraining on BenthiCat SSS |
 
 ## Running
 

@@ -1,0 +1,9 @@
+# @package _global_
+# B6 (YOLO26 variant): our BYOL self-supervised backbone pretrained on unlabeled
+# BenthiCat SSS tiles, on the YOLO26 architecture (comparable to B3/B4 YOLO26).
+
+defaults:
+  - override /init: ssl_benthicat_yolo26
+  - override /augmentation: all   # TODO: confirm aug setting for init-ablation suite
+
+tags: ["sonar", "yolo26", "exp:b6", "init:ssl_benthicat_yolo26"]

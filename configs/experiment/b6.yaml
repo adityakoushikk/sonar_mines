@@ -1,0 +1,8 @@
+# @package _global_
+# B6: our BYOL self-supervised backbone pretrained on unlabeled BenthiCat SSS tiles.
+
+defaults:
+  - override /init: ssl_benthicat
+  - override /augmentation: all   # TODO: confirm aug setting for init-ablation suite
+
+tags: ["sonar", "yolov8", "exp:b6", "init:ssl_benthicat"]

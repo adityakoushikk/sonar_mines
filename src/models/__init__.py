@@ -5,6 +5,7 @@ from src.models.load_pretrained import (
     load_random,
     load_random_detector,
     load_random_head,
+    load_ssl_benthicat,
 )
 
 __all__ = [
@@ -13,4 +14,5 @@ __all__ = [
     "load_random_detector",
     "load_random_head",
     "load_coco_full",
+    "load_ssl_benthicat",
 ]

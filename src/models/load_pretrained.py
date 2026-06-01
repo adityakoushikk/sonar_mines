@@ -1,4 +1,4 @@
-"""Backbone/checkpoint loaders for the B1–B5 initialization ablation.
+"""Backbone/checkpoint loaders for the B1–B6 initialization ablation.
 
 Every loader returns an `ultralytics.YOLO` model whose head is reset to the
 number of target classes (2 for Santos: MILCO, NOMBO). Callers should not
@@ -9,6 +9,7 @@ from __future__ import annotations
 from copy import deepcopy
 from pathlib import Path
 
+import torch
 from ultralytics import YOLO
 
 
@@ -179,3 +180,29 @@ def load_coco_partial_arch(
     target = _replace_with_target_nc_model(target, num_classes)
     _load_compatible_non_detector_weights(target.model, source.model)
     return _apply_class_metadata(target, num_classes)
+
+
+def load_ssl_benthicat(
+    weights_path: str | Path,
+    num_classes: int,
+    model_variant: str = "yolov8n",
+) -> YOLO:
+    """B6: BYOL self-supervised backbone (BenthiCat SSS) loaded into a fresh detector.
+
+    Loads only the backbone slice (strict=False leaves neck+head random);
+    architecture-agnostic, so ``model_variant`` may be ``"yolov8n"`` or ``"yolo26n"``.
+
+    Args:
+        weights_path: Path to the ``byol_benthicat_<variant>.pt`` checkpoint.
+        num_classes: Number of detection classes for the new head.
+        model_variant: YAML architecture name; must match the checkpoint's variant.
+    """
+    _validate_num_classes(num_classes)
+    model = YOLO(_model_yaml_name(model_variant))
+    ckpt = torch.load(weights_path, map_location="cpu")
+    _missing, unexpected = model.model.load_state_dict(
+        ckpt["backbone_state_dict"], strict=False
+    )
+    if unexpected:  # unexpected key => variant/architecture mismatch, not partial load
+        raise ValueError(f"unexpected keys when loading SSL backbone: {unexpected}")
+    return _apply_class_metadata(model, num_classes)
