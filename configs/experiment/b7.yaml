@@ -1,0 +1,9 @@
+# @package _global_
+# B7: fine-tune Santos from the cylinder/manta-trained YOLOv8 checkpoint.
+
+defaults:
+  - override /data: santos_stratified
+  - override /init: cylinder_checkpoint
+  - override /augmentation: all
+
+tags: ["sonar", "yolov8", "exp:b7", "data:santos_stratified", "init:cylinder_checkpoint", "aug:all"]

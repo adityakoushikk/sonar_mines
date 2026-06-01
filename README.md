@@ -143,10 +143,16 @@ python -m src.train -m experiment=b4 data=santos_stratified seed=0,1,2 training.
 
 ### Cylinder Dataset Pretraining
 
-Train on the cylinder/manta side-scan sonar dataset with the all-augmentation condition, comparing standard COCO init against COCO backbone/neck with a random detector.
+Train on the cylinder/manta side-scan sonar dataset with the all-augmentation condition and standard COCO init.
 
 ```bash
-python -m src.train -m experiment=cylinder,cylinderRandDetector seed=0,1,2 training.epochs=600 training.batch=16 training.imgsz=800 training.device=cuda training.workers=5 logging.wandb.project="sonar cylinder pretrain"
+python -m src.train -m experiment=cylinder seed=0,1,2 training.optimizer=MuSGD training.lr0=0.0001,0.0005,0.001 training.epochs=1000 training.batch=16 training.imgsz=800 training.device=cuda training.workers=5 logging.wandb.project=cylinder
+```
+
+Fine-tune Santos from the cylinder checkpoint (`best.pt`):
+
+```bash
+python -m src.train -m experiment=b7 seed=0,1,2 training.epochs=1000 training.batch=16 training.imgsz=800 training.device=cuda training.workers=5 logging.wandb.project="sonar cylinder pretrain"
 ```
 
 ## Install

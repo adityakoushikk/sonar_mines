@@ -31,8 +31,11 @@ runs/                       # ultralytics default save dir, in case anything lea
 
 # Checkpoints and weights
 *.pt
+**/*.pt
 *.pth
+**/*.pth
 *.ckpt
+**/*.ckpt
 checkpoints/
 
 # Datasets (populated by user, not tracked)

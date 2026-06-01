@@ -14,8 +14,10 @@ wandb>=0.16,<0.18
 # Notebooks / analysis
 jupyter
 matplotlib
+plotly
 pandas
 scikit-learn
 scikit-image
+umap-learn
 pillow
 scipy>=1.11,<1.17

@@ -1,8 +1,0 @@
-# @package _global_
-# B5: our UATD-pretrained YOLOv8 checkpoint init. Same modality (SSS) as Santos.
-
-defaults:
-  - override /init: sonar_uatd
-  - override /augmentation: none   # TODO: confirm aug setting for init-ablation suite
-
-tags: ["sonar", "yolov8", "exp:b5", "init:sonar_uatd"]

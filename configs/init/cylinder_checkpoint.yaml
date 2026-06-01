@@ -1,0 +1,7 @@
+# Full YOLOv8 checkpoint fine-tuned on the cylinder/manta dataset.
+
+name: "cylinder_checkpoint"
+loader: "load_coco_full"
+model_variant: "yolov8n"
+weights_path: "best.pt"
+num_classes: 2
