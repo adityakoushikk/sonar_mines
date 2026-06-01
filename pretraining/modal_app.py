@@ -45,9 +45,9 @@ _OUT_DIR = f"{_DATA_DIR}/checkpoints"
 
 
 @app.function(
-    # Single A100: the backbone is tiny and data-bound; this also avoids the
-    # multi-GPU DDP path that can't be smoke-tested locally. To scale, set
-    # "A100:N" AND pass --epoch-length (train_byol requires it for multi-GPU).
+    # Single A100. For multi-GPU use the separate `train_multi` function below —
+    # setting "A100:N" here would NOT parallelize (one process uses 1 GPU, bills N);
+    # real multi-GPU needs the notebook_launcher in train_multi.
     gpu="A100",
     # The run is augmentation-bound (the A100 sits ~95% idle waiting on CPU-side
     # speckle/range-falloff/crops), so give the DataLoader workers real cores —
@@ -102,6 +102,81 @@ def train(
     ckpt_path = train_byol(cfg, on_checkpoint=lambda _path: vol.commit())
     vol.commit()  # Volume writes are buffered; commit makes the final .pt visible.
     return ckpt_path
+
+
+# Number of GPUs for the multi-GPU function. Static because @app.function's gpu=
+# is fixed at decoration time, so multi-GPU lives in its own function.
+_N_GPUS = 4
+
+
+@app.function(
+    gpu=f"A100:{_N_GPUS}",
+    # ~16 cores/GPU to feed each process's dataloader workers. The run is
+    # augmentation-bound, so total workers (N_GPUS x num_workers) drive throughput.
+    cpu=float(_N_GPUS * 16),
+    timeout=24 * 60 * 60,
+    volumes={_DATA_DIR: vol},
+    secrets=[modal.Secret.from_name("wandb")],
+)
+def train_multi(
+    epochs: int = 40,
+    batch_size: int = 256,
+    num_workers: int = 16,
+    wandb_enabled: bool = True,
+    total_tiles: int = 957_040,
+    variant: str = "yolov8n",
+) -> str:
+    """Multi-GPU (DDP) BYOL pretraining via ``accelerate.notebook_launcher``.
+
+    Spawns ``_N_GPUS`` processes, each on one A100 with its own dataloader workers,
+    so the augmentation-bound throughput scales ~with GPU count. ``total_tiles`` (the
+    count preprocess_volume printed) sets epoch_length for ~one full pass per epoch.
+    """
+    import glob
+
+    from accelerate import notebook_launcher
+
+    from pretraining.ssl.byol import TrainConfig, train_byol
+
+    vol.reload()
+    shards = sorted(glob.glob(f"{_SHARDS_DIR}/benthicat-*.tar"))
+    if not shards:
+        raise FileNotFoundError(
+            f"no benthicat-*.tar shards under {_SHARDS_DIR}; preprocess first"
+        )
+
+    # Each shard is read by exactly one (process, worker), so cap workers at
+    # shards-per-process or some workers starve ("fewer shards than workers").
+    workers = max(1, min(num_workers, len(shards) // _N_GPUS))
+    # with_epoch is per-worker, so samples/epoch = N_GPUS * workers * epoch_length;
+    # target ~one full pass over total_tiles each epoch.
+    epoch_length = max(1, total_tiles // (_N_GPUS * workers))
+    print(
+        f"[train_multi] {_N_GPUS} GPUs x {workers} workers; epoch_length={epoch_length} "
+        f"(~{_N_GPUS * workers * epoch_length} samples/epoch over {len(shards)} shards)"
+    )
+
+    cfg = TrainConfig(
+        shards=shards,
+        out_dir=_OUT_DIR,
+        variant=variant,
+        epochs=epochs,
+        batch_size=batch_size,
+        num_workers=workers,
+        wandb_enabled=wandb_enabled,
+        wandb_project="sonar-ssl",
+        epoch_length=epoch_length,
+        mixed_precision="bf16",
+    )
+
+    # notebook_launcher spawns _N_GPUS processes running train_byol under DDP.
+    # We do NOT touch CUDA in this parent process before launching (fork+CUDA
+    # deadlocks), and we don't pass on_checkpoint — rank 0 writes checkpoints to
+    # the mounted Volume and the main process commits once the launcher returns.
+    notebook_launcher(train_byol, args=(cfg,), num_processes=_N_GPUS)
+
+    vol.commit()
+    return f"{_OUT_DIR}/byol_benthicat_{variant}.pt"
 
 
 @app.function(volumes={_DATA_DIR: vol})
