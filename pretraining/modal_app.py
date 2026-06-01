@@ -134,9 +134,9 @@ def train_multi(
     """
     import glob
 
-    from accelerate import notebook_launcher
-
-    from pretraining.ssl.byol import TrainConfig, train_byol
+    # CUDA-free import: ddp.py pulls in no torch/ultralytics at top level, so the
+    # parent stays clean and the spawn workers do the heavy imports themselves.
+    from pretraining.ssl.ddp import launch
 
     vol.reload()
     shards = sorted(glob.glob(f"{_SHARDS_DIR}/benthicat-*.tar"))
@@ -156,7 +156,9 @@ def train_multi(
         f"(~{_N_GPUS * workers * epoch_length} samples/epoch over {len(shards)} shards)"
     )
 
-    cfg = TrainConfig(
+    # Pass a plain dict (not a TrainConfig) so the parent never imports the
+    # ultralytics-bearing byol module; each spawned worker reconstructs TrainConfig.
+    cfg_dict = dict(
         shards=shards,
         out_dir=_OUT_DIR,
         variant=variant,
@@ -169,11 +171,9 @@ def train_multi(
         mixed_precision="bf16",
     )
 
-    # notebook_launcher spawns _N_GPUS processes running train_byol under DDP.
-    # We do NOT touch CUDA in this parent process before launching (fork+CUDA
-    # deadlocks), and we don't pass on_checkpoint — rank 0 writes checkpoints to
-    # the mounted Volume and the main process commits once the launcher returns.
-    notebook_launcher(train_byol, args=(cfg,), num_processes=_N_GPUS)
+    # Spawn (not fork) _N_GPUS processes under DDP; rank 0 writes checkpoints to
+    # the mounted Volume, and we commit once all workers return.
+    launch(cfg_dict, _N_GPUS)
 
     vol.commit()
     return f"{_OUT_DIR}/byol_benthicat_{variant}.pt"

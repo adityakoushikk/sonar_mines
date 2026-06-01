@@ -56,10 +56,16 @@ def build_webdataset_loader(
     if epoch_length is not None:
         dataset = dataset.with_epoch(epoch_length)
 
+    # Force fork for the DataLoader workers: under a spawn-launched DDP process the
+    # default context becomes spawn, which would need to pickle the (lambda-bearing)
+    # WebDataset pipeline. Workers do only CPU augmentation (never touch CUDA), so
+    # forking from a CUDA-initialized process is safe — same as the single-GPU path.
+    mp_context = "fork" if num_workers > 0 else None
     return torch.utils.data.DataLoader(
         dataset,
         batch_size=batch_size,
         num_workers=num_workers,
         collate_fn=_collate_two_views,
         drop_last=True,
+        multiprocessing_context=mp_context,
     )
