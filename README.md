@@ -6,7 +6,6 @@ YOLOv8 was chosen because its CNN detection head is small enough to fine-tune fr
 
 Configuration is managed by **Hydra** (run/multirun) and experiment tracking is on **Weights & Biases**. This project does **not** use PyTorch Lightning — Ultralytics has its own training loop.
 
-> Status: scaffolding only. Every Python function raises `NotImplementedError` and every config value is a `TODO` placeholder. Fill in incrementally.
 
 ## Layout
 
